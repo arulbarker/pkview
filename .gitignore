@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.class
+*.so
+build/
+dist/
+*.egg-info/
+.Python
+venv/
+.venv/
+env/
+ENV/
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+sounds/*.mp3
+*.json
+test_*.py
+minimal_test.py
+nul
