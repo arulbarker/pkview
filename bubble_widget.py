@@ -82,10 +82,12 @@ class BubbleWidget(QWidget):
 
         # Then try to load real avatar if URL exists
         avatar_url = self.event_data.get('avatar_url', '')
+
+        # Load avatar if URL exists (no debug prints to avoid Unicode errors)
         if avatar_url and avatar_url.startswith('http'):
             try:
                 request = QNetworkRequest(QUrl(avatar_url))
-                request.setTransferTimeout(3000)  # 3 second timeout
+                request.setTransferTimeout(5000)  # 5 second timeout (increased)
                 reply = self.network_manager.get(request)
                 reply.finished.connect(lambda: self._on_avatar_loaded(reply))
             except Exception:
@@ -100,12 +102,14 @@ class BubbleWidget(QWidget):
             pixmap.loadFromData(data)
 
             if not pixmap.isNull():
-                # Create circular avatar
+                # Create circular avatar - SUCCESS!
                 self.avatar_pixmap = self._create_circular_pixmap(pixmap)
                 self.update()
             else:
+                # Invalid image data
                 self._create_placeholder_avatar()
         else:
+            # Network error - keep placeholder
             self._create_placeholder_avatar()
 
         reply.deleteLater()

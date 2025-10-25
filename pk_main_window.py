@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QLabel, QPushButton, QFrame, QSplitter, QGroupBox,
                              QTextEdit, QLineEdit, QSpinBox, QSlider, QCheckBox,
                              QTabWidget)
-from PyQt6.QtCore import Qt, QTimer, pyqtSlot, QRect
+from PyQt6.QtCore import Qt, QTimer, pyqtSlot, QRect, QPoint
 from PyQt6.QtGui import QPainter, QColor, QLinearGradient, QPen, QFont
 import config
 from bubble_widget import BubbleWidget
@@ -110,26 +110,29 @@ class PKMainWindow(QMainWindow):
         """)
         container.setMinimumSize(1400, 1000)
 
-        # Use absolute positioning for zones
-        # We'll create overlay widgets
+        # FIXED: Make zones FULL SIZE to prevent clipping!
+        # Zones are now full container size - no more element cutting!
 
-        # TOP Bubble Zone
+        # TOP Bubble Zone (FULL SIZE - for bubbles only)
         self.top_bubble_zone = QWidget(container)
-        self.top_bubble_zone.setGeometry(0, 0, 1536, 200)
+        self.top_bubble_zone.setGeometry(0, 0, 2000, 1200)  # Full size
         self.top_bubble_zone.setStyleSheet("background: transparent;")
+        self.top_bubble_zone.lower()  # Behind draggable elements
 
-        # CENTER PK Battle View
+        # CENTER PK Battle View (FULL SIZE - for all draggable elements)
         self.center_pk_view = QWidget(container)
-        self.center_pk_view.setGeometry(0, 200, 1536, 600)
+        self.center_pk_view.setGeometry(0, 0, 2000, 1200)  # Full size
         self.center_pk_view.setStyleSheet("background: transparent;")
+        # Don't lower this one - it should be above zones
 
         # Create PK view components
         self._create_pk_view_components()
 
-        # BOTTOM Bubble Zone
+        # BOTTOM Bubble Zone (FULL SIZE - for bubbles only)
         self.bottom_bubble_zone = QWidget(container)
-        self.bottom_bubble_zone.setGeometry(0, 800, 1536, 200)
+        self.bottom_bubble_zone.setGeometry(0, 0, 2000, 1200)  # Full size
         self.bottom_bubble_zone.setStyleSheet("background: transparent;")
+        self.bottom_bubble_zone.lower()  # Behind draggable elements
 
         return container
 
@@ -178,18 +181,21 @@ class PKMainWindow(QMainWindow):
         self.points_a_label.max_width = 500
         self.points_a_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        # VS Label (center separator)
-        vs_label = QLabel(self.center_pk_view)
-        vs_label.setGeometry(700, 610, 100, 50)
-        vs_label.setText("VS")
-        vs_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        vs_label.setStyleSheet("""
-            QLabel {
-                color: white;
-                font-size: 36px;
-                font-weight: bold;
-            }
-        """)
+        # VS Label (center separator) - DRAGGABLE, ROTATABLE, RESIZABLE!
+        self.vs_label = DraggableLabel(
+            self.center_pk_view,
+            "VS",
+            font_size=36,
+            text_color="#FFD700",  # Gold
+            bg_color="rgba(255, 215, 0, 0.2)",  # Gold semi-transparent
+            border_color="#FFD700"
+        )
+        self.vs_label.setGeometry(700, 610, 100, 50)
+        self.vs_label.min_width = 60
+        self.vs_label.max_width = 300
+        self.vs_label.min_height = 40
+        self.vs_label.max_height = 150
+        self.vs_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         # Team B Points (DRAGGABLE, ROTATABLE, RESIZABLE!)
         self.points_b_label = DraggableLabel(
@@ -851,7 +857,11 @@ class PKMainWindow(QMainWindow):
         self.tiktok_handler.disconnect_from_live()
         if self.tiktok_thread:
             self.tiktok_thread.quit()
-            self.tiktok_thread.wait()
+            # Use timeout to prevent GUI freeze
+            if not self.tiktok_thread.wait(2000):  # 2 second timeout
+                # Force terminate if still running
+                self.tiktok_thread.terminate()
+                self.tiktok_thread.wait(1000)  # Wait up to 1 more second
 
         self.connect_btn.setEnabled(True)
         self.disconnect_btn.setEnabled(False)
@@ -891,12 +901,30 @@ class PKMainWindow(QMainWindow):
 
 
 class PKProgressBar(QWidget):
-    """Custom progress bar for PK battle - Shows REAL POINTS"""
+    """Custom progress bar for PK battle - Shows REAL POINTS - DRAGGABLE, ROTATABLE, RESIZABLE!"""
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.team_a_points = 0
         self.team_b_points = 0
+
+        # Drag state
+        self.dragging = False
+        self.resizing = False
+        self.resize_corner = None
+        self.drag_start_pos = QPoint()
+        self.rotation_angle = 0  # Degrees
+
+        # Size limits
+        self.min_width = 300
+        self.max_width = 1500
+        self.min_height = 40
+        self.max_height = 200
+
+        # Enable mouse tracking
+        self.setMouseTracking(True)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
     def set_points(self, team_a_points, team_b_points):
         """Set real points for both teams"""
@@ -904,10 +932,118 @@ class PKProgressBar(QWidget):
         self.team_b_points = team_b_points
         self.update()
 
+    def wheelEvent(self, event):
+        """Rotate with mouse wheel"""
+        if event.modifiers() == Qt.KeyboardModifier.ControlModifier:
+            # Ctrl + Wheel = Rotate
+            delta = event.angleDelta().y()
+            self.rotation_angle += delta / 8  # 1 degree per wheel step
+            self.rotation_angle = self.rotation_angle % 360  # Keep in 0-360 range
+            self.update()
+        else:
+            super().wheelEvent(event)
+
+    def mousePressEvent(self, event):
+        """Handle mouse press for drag/resize"""
+        if event.button() == Qt.MouseButton.LeftButton:
+            corner = self._get_corner_at_pos(event.pos())
+
+            if corner:
+                # Start resizing
+                self.resizing = True
+                self.resize_corner = corner
+                self.drag_start_pos = event.pos()
+            else:
+                # Start dragging
+                self.dragging = True
+                self.drag_start_pos = event.globalPosition().toPoint() - self.pos()
+
+    def mouseMoveEvent(self, event):
+        """Handle mouse move for drag/resize"""
+        if self.resizing:
+            self._handle_resize(event.pos())
+        elif self.dragging:
+            # Move widget
+            new_pos = event.globalPosition().toPoint() - self.drag_start_pos
+            self.move(new_pos)
+        else:
+            # Update cursor based on position
+            corner = self._get_corner_at_pos(event.pos())
+            if corner:
+                self.setCursor(Qt.CursorShape.SizeFDiagCursor)
+            else:
+                self.setCursor(Qt.CursorShape.SizeAllCursor)
+
+    def mouseReleaseEvent(self, event):
+        """Handle mouse release"""
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.dragging = False
+            self.resizing = False
+            self.resize_corner = None
+            self.setCursor(Qt.CursorShape.ArrowCursor)
+
+    def _get_corner_at_pos(self, pos):
+        """Check if position is near a corner for resizing"""
+        corner_size = 20
+        w = self.width()
+        h = self.height()
+
+        # Check corners
+        corners = {
+            'top_left': QRect(0, 0, corner_size, corner_size),
+            'top_right': QRect(w - corner_size, 0, corner_size, corner_size),
+            'bottom_left': QRect(0, h - corner_size, corner_size, corner_size),
+            'bottom_right': QRect(w - corner_size, h - corner_size, corner_size, corner_size),
+        }
+
+        for corner_name, rect in corners.items():
+            if rect.contains(pos):
+                return corner_name
+
+        return None
+
+    def _handle_resize(self, pos):
+        """Handle resizing from corner"""
+        if not self.resize_corner:
+            return
+
+        delta = pos - self.drag_start_pos
+        new_width = self.width()
+        new_height = self.height()
+        new_x = self.x()
+        new_y = self.y()
+
+        if 'right' in self.resize_corner:
+            new_width = max(self.min_width, min(self.max_width, self.width() + delta.x()))
+        elif 'left' in self.resize_corner:
+            new_width = max(self.min_width, min(self.max_width, self.width() - delta.x()))
+            new_x = self.x() + delta.x()
+
+        if 'bottom' in self.resize_corner:
+            new_height = max(self.min_height, min(self.max_height, self.height() + delta.y()))
+        elif 'top' in self.resize_corner:
+            new_height = max(self.min_height, min(self.max_height, self.height() - delta.y()))
+            new_y = self.y() + delta.y()
+
+        self.setGeometry(new_x, new_y, new_width, new_height)
+        self.drag_start_pos = pos
+
     def paintEvent(self, event):
-        """Custom paint"""
+        """Custom paint with rotation support"""
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
+
+        # Apply rotation if needed
+        if self.rotation_angle != 0:
+            # Save original state
+            painter.save()
+
+            # Rotate around center
+            center = self.rect().center()
+            painter.translate(center.x(), center.y())
+            painter.rotate(self.rotation_angle)
+            painter.translate(-center.x(), -center.y())
 
         w = self.width()
         h = self.height()
@@ -958,3 +1094,22 @@ class PKProgressBar(QWidget):
         painter.drawText(QRect(w - 260, 0, 250, h),
                         Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
                         f"{self.team_b_points:,}")
+
+        # Draw resize handles at corners (only when not rotating)
+        if abs(self.rotation_angle) < 5:
+            painter.setPen(QPen(QColor(255, 255, 255, 100), 1))
+            painter.setBrush(QColor(255, 255, 255, 50))
+            corner_size = 8
+
+            # Draw small circles at corners
+            corners = [
+                (0, 0), (w - corner_size, 0),
+                (0, h - corner_size), (w - corner_size, h - corner_size)
+            ]
+
+            for x, y in corners:
+                painter.drawEllipse(x, y, corner_size, corner_size)
+
+        # Restore if rotated
+        if self.rotation_angle != 0:
+            painter.restore()
