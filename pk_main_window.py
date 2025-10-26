@@ -17,10 +17,14 @@ from gift_assignment_widget import GiftAssignmentWidget
 from interaction_assignment_widget import InteractionAssignmentWidget
 from bubble_position_widget import BubblePositionWidget
 from event_sound_widget import EventSoundWidget
+from point_settings_widget import PointSettingsWidget
 from draggable_label import DraggableLabel, DraggableMultiLineLabel
 from sound_manager import SoundManager
 from tiktok_handler import TikTokHandler, TikTokThread
 import random
+import math
+import os
+import json
 
 
 class PKMainWindow(QMainWindow):
@@ -59,12 +63,32 @@ class PKMainWindow(QMainWindow):
         # Event sound settings
         self.event_sound_settings = {}
 
+        # Point settings (custom points per like/comment)
+        self.point_values = {
+            'like': 1,      # Default: 1 point per like
+            'comment': 1    # Default: 1 point per comment
+        }
+
+        # Win sound file paths (customizable by user)
+        self.win_sound_files = {
+            'team_a': 'sounds/team_a_win.mp3',
+            'team_b': 'sounds/team_b_win.mp3'
+        }
+
         self._setup_ui()
         self._connect_signals()
+
+        # CRITICAL FIX: Manually trigger assignment updates after signals are connected
+        # Widgets already loaded their data, but signals weren't connected yet
+        self._initialize_assignments_from_widgets()
+
         self._show_welcome_message()
 
         # Create placeholder sounds
         self.sound_manager.create_placeholder_sounds()
+
+        # Load custom win sound paths
+        self._load_win_sound_settings()
 
     def _setup_ui(self):
         """Setup the user interface"""
@@ -266,7 +290,16 @@ class PKMainWindow(QMainWindow):
         self.event_sound_widget.sound_settings_changed.connect(self._on_sound_settings_changed)
         tabs.addTab(self.event_sound_widget, "🔊 Suara")
 
-        # Tab 8: Simulation
+        # Tab 8: Point Settings
+        self.point_settings_widget = PointSettingsWidget()
+        self.point_settings_widget.point_settings_changed.connect(self._on_point_settings_changed)
+        tabs.addTab(self.point_settings_widget, "🎯 Custom Points")
+
+        # Tab 9: Developer Info
+        developer_tab = self._create_developer_tab()
+        tabs.addTab(developer_tab, "👨‍💻 Developer")
+
+        # Tab 9: Simulation
         simulation_tab = self._create_simulation_controls()
         tabs.addTab(simulation_tab, "🧪 Test")
 
@@ -349,6 +382,44 @@ class PKMainWindow(QMainWindow):
         self.volume_slider.valueChanged.connect(self._on_volume_changed)
         volume_layout.addWidget(self.volume_slider)
         layout.addLayout(volume_layout)
+
+        # Win sound customization
+        layout.addSpacing(15)
+        layout.addWidget(QLabel("🎵 Custom Win Sounds:"))
+
+        # Team A win sound
+        team_a_sound_layout = QHBoxLayout()
+        team_a_label = QLabel("Team A:")
+        team_a_label.setStyleSheet("color: #FF6B6B; font-weight: bold;")
+        team_a_sound_layout.addWidget(team_a_label)
+
+        self.team_a_sound_file = QLabel("team_a_win.mp3")
+        self.team_a_sound_file.setStyleSheet("color: #888; font-size: 11px;")
+        team_a_sound_layout.addWidget(self.team_a_sound_file)
+        team_a_sound_layout.addStretch()
+
+        team_a_browse_btn = QPushButton("Browse...")
+        team_a_browse_btn.clicked.connect(lambda: self._browse_win_sound('A'))
+        team_a_browse_btn.setMaximumWidth(80)
+        team_a_sound_layout.addWidget(team_a_browse_btn)
+        layout.addLayout(team_a_sound_layout)
+
+        # Team B win sound
+        team_b_sound_layout = QHBoxLayout()
+        team_b_label = QLabel("Team B:")
+        team_b_label.setStyleSheet("color: #4ECDC4; font-weight: bold;")
+        team_b_sound_layout.addWidget(team_b_label)
+
+        self.team_b_sound_file = QLabel("team_b_win.mp3")
+        self.team_b_sound_file.setStyleSheet("color: #888; font-size: 11px;")
+        team_b_sound_layout.addWidget(self.team_b_sound_file)
+        team_b_sound_layout.addStretch()
+
+        team_b_browse_btn = QPushButton("Browse...")
+        team_b_browse_btn.clicked.connect(lambda: self._browse_win_sound('B'))
+        team_b_browse_btn.setMaximumWidth(80)
+        team_b_sound_layout.addWidget(team_b_browse_btn)
+        layout.addLayout(team_b_sound_layout)
 
         layout.addStretch()
         return widget
@@ -435,6 +506,82 @@ class PKMainWindow(QMainWindow):
 
         layout.addStretch()
         return widget
+
+    def _create_developer_tab(self):
+        """Create developer info tab with social media links"""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setSpacing(15)
+
+        # Title
+        title = QLabel("👨‍💻 Developer Info")
+        title.setStyleSheet("font-size: 18px; font-weight: bold; color: white; margin-bottom: 10px;")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title)
+
+        # Developer name
+        dev_name = QLabel("Created by: Arul CG")
+        dev_name.setStyleSheet("font-size: 14px; color: #FFD700; margin-bottom: 20px;")
+        dev_name.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(dev_name)
+
+        # Social media links container
+        links_group = QGroupBox("Follow Me On Social Media")
+        links_layout = QVBoxLayout()
+        links_layout.setSpacing(10)
+
+        # Social media data
+        social_links = [
+            ("YouTube", "https://www.youtube.com/@arulcg", "#FF0000"),
+            ("Instagram", "https://www.instagram.com/arul.cg/", "#E4405F"),
+            ("Facebook", "https://www.facebook.com/profile.php?id=61578938703730", "#1877F2"),
+            ("Threads", "https://www.threads.com/@arul.cg", "#000000"),
+            ("X (Twitter)", "https://x.com/ArulCg", "#1DA1F2"),
+            ("LYNKID", "https://lynk.id/arullagi", "#00D9FF")
+        ]
+
+        # Create clickable link buttons
+        for platform, url, color in social_links:
+            link_btn = QPushButton(f"🔗 {platform}")
+            link_btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {color};
+                    color: white;
+                    border: none;
+                    padding: 12px;
+                    border-radius: 6px;
+                    font-size: 13px;
+                    font-weight: bold;
+                    text-align: left;
+                }}
+                QPushButton:hover {{
+                    background-color: #666666;
+                }}
+            """)
+            link_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            link_btn.clicked.connect(lambda checked, u=url: self._open_link(u))
+            links_layout.addWidget(link_btn)
+
+        links_group.setLayout(links_layout)
+        layout.addWidget(links_group)
+
+        # Attribution
+        attr_label = QLabel("Thank you for using TikTok Live PK Battle App!")
+        attr_label.setStyleSheet("font-size: 11px; color: #888888; margin-top: 20px;")
+        attr_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(attr_label)
+
+        layout.addStretch()
+        return widget
+
+    def _open_link(self, url):
+        """Open URL in default browser"""
+        try:
+            import webbrowser
+            webbrowser.open(url)
+            self._add_log(f"Opening: {url}")
+        except Exception as e:
+            self._add_log(f"Error opening link: {str(e)}")
 
     def _connect_signals(self):
         """Connect PK system signals"""
@@ -542,7 +689,12 @@ class PKMainWindow(QMainWindow):
     @pyqtSlot(str)
     def _on_round_won(self, winner):
         """Handle round win"""
-        self._add_log(f"🏆 TEAM {winner} WINS THE ROUND!")
+        self._add_log(f"")
+        self._add_log(f"{'='*50}")
+        self._add_log(f"[WINNER] TEAM {winner} WINS THE ROUND!")
+        self._add_log(f"{'='*50}")
+        self._add_log(f"[INFO] Auto-reset in 5 seconds...")
+        self._add_log(f"[INFO] Score will accumulate, round will restart")
         self.sound_manager.play_team_win(winner)
 
         # TODO: Add visual win effect
@@ -550,7 +702,12 @@ class PKMainWindow(QMainWindow):
     @pyqtSlot()
     def _on_round_reset(self):
         """Handle round reset"""
-        self._add_log("🔄 New round starting...")
+        self._add_log(f"")
+        self._add_log(f"[NEW ROUND] Starting fresh round!")
+        self._add_log(f"[RESET] Points: 0 - 0")
+        self._add_log(f"[SCORE] Total Score: {self.pk_system.team_a_score} - {self.pk_system.team_b_score} (Accumulated)")
+        self._add_log(f"{'='*50}")
+        self._add_log(f"")
 
     def _on_start_battle(self):
         """Start PK battle"""
@@ -593,6 +750,77 @@ class PKMainWindow(QMainWindow):
         volume = value / 100.0
         self.sound_manager.set_volume(volume)
 
+    def _browse_win_sound(self, team):
+        """Browse for custom win sound file"""
+        from PyQt6.QtWidgets import QFileDialog
+        import os
+
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            f"Select Win Sound for Team {team}",
+            "sounds",
+            "Audio Files (*.mp3 *.wav *.ogg);;All Files (*.*)"
+        )
+
+        if file_path and os.path.exists(file_path):
+            # Update the stored path
+            team_key = f'team_{team.lower()}'
+            self.win_sound_files[team_key] = file_path
+
+            # Update the label
+            file_name = os.path.basename(file_path)
+            if team == 'A':
+                self.team_a_sound_file.setText(file_name)
+            else:
+                self.team_b_sound_file.setText(file_name)
+
+            # Update sound manager
+            self.sound_manager.set_win_sound_file(team, file_path)
+
+            # Save settings
+            self._save_win_sound_settings()
+
+            self._add_log(f"[OK] Team {team} win sound: {file_name}")
+
+    def _load_win_sound_settings(self):
+        """Load custom win sound file paths from JSON"""
+        try:
+            filepath = 'win_sounds.json'
+            if os.path.exists(filepath):
+                with open(filepath, 'r') as f:
+                    saved_sounds = json.load(f)
+
+                # Update paths
+                self.win_sound_files.update(saved_sounds)
+
+                # Update UI labels
+                if 'team_a' in saved_sounds:
+                    file_name = os.path.basename(saved_sounds['team_a'])
+                    self.team_a_sound_file.setText(file_name)
+                    self.sound_manager.set_win_sound_file('A', saved_sounds['team_a'])
+
+                if 'team_b' in saved_sounds:
+                    file_name = os.path.basename(saved_sounds['team_b'])
+                    self.team_b_sound_file.setText(file_name)
+                    self.sound_manager.set_win_sound_file('B', saved_sounds['team_b'])
+
+                print("[OK] Loaded custom win sound settings")
+
+        except Exception as e:
+            print(f"Error loading win sound settings: {e}")
+
+    def _save_win_sound_settings(self):
+        """Save custom win sound file paths to JSON"""
+        try:
+            filepath = 'win_sounds.json'
+            with open(filepath, 'w') as f:
+                json.dump(self.win_sound_files, f, indent=2)
+
+            print("[OK] Win sound settings saved")
+
+        except Exception as e:
+            print(f"Error saving win sound settings: {e}")
+
     def _on_photo_loaded(self, team, file_path):
         """Load team photo"""
         if team == 'A':
@@ -627,6 +855,13 @@ class PKMainWindow(QMainWindow):
         self.event_sound_settings = settings
         enabled_count = sum(1 for s in settings.values() if s['enabled'])
         self._add_log(f"🔊 Sound settings updated ({enabled_count}/{len(settings)} enabled)")
+
+    def _on_point_settings_changed(self, settings):
+        """Point settings changed"""
+        self.point_values = settings
+        self._add_log(f"🎯 Custom points updated")
+        self._add_log(f"  1 Like = {settings['like']} poin")
+        self._add_log(f"  1 Comment = {settings['comment']} poin")
 
     @pyqtSlot(dict)
     def _on_tiktok_event(self, event_data):
@@ -671,8 +906,13 @@ class PKMainWindow(QMainWindow):
         # Check if it's a like or comment - add points to assigned team
         if event_type == 'like':
             team = self.interaction_assignments.get('like', 'A')
-            self.pk_system.add_interaction_points(team, 1)
-            self._add_log(f"👍 Like → Team {team} (+1 poin)")
+            # Use like_count if available (handles spam/rapid likes from same user)
+            like_count = event_data.get('like_count', 1)
+            # Get custom points per like
+            points_per_like = self.point_values.get('like', 1)
+            total_points = like_count * points_per_like
+            self.pk_system.add_interaction_points(team, like_count, points_per_like)
+            self._add_log(f"[LIKE] Team {team} (+{total_points} poin) [{like_count} x {points_per_like}]")
 
             # Play sound if enabled
             if event_type in self.event_sound_settings and self.event_sound_settings[event_type]['enabled']:
@@ -681,9 +921,11 @@ class PKMainWindow(QMainWindow):
 
         elif event_type == 'comment':
             team = self.interaction_assignments.get('comment', 'A')
-            self.pk_system.add_interaction_points(team, 1)
+            # Get custom points per comment
+            points_per_comment = self.point_values.get('comment', 1)
+            self.pk_system.add_interaction_points(team, 1, points_per_comment)
             comment_text = event_data.get('comment', '')[:20]
-            self._add_log(f"💬 Comment → Team {team} (+1 poin): {comment_text}")
+            self._add_log(f"[COMMENT] Team {team} (+{points_per_comment} poin): {comment_text}")
 
             # Play sound if enabled
             if event_type in self.event_sound_settings and self.event_sound_settings[event_type]['enabled']:
@@ -699,13 +941,61 @@ class PKMainWindow(QMainWindow):
         # Get bubble position for this event type
         bubble_position = self.bubble_positions.get(event_type, 'top')
 
-        # Create bubble for visual effect based on position settings
-        self._create_bubble_at_position(event_data, bubble_position)
+        # Get team assignment for like/comment to position bubble near team circle
+        team = None
+        if event_type == 'like':
+            team = self.interaction_assignments.get('like', 'A')
+        elif event_type == 'comment':
+            team = self.interaction_assignments.get('comment', 'A')
 
-    def _create_bubble_at_position(self, event_data, position='top'):
-        """Create bubble at specified position (left, right, top, bottom)"""
-        # Choose parent zone based on position
-        if position in ['left', 'right']:
+        # Create bubble for visual effect based on position settings
+        self._create_bubble_at_position(event_data, bubble_position, team)
+
+    def _create_bubble_at_position(self, event_data, position='top', team=None):
+        """Create bubble at specified position (left, right, top, bottom)
+        If team is provided, position bubble near team's photo circle"""
+
+        # If team is assigned (for like/comment), position near team photo in center view
+        if team:
+            parent = self.center_pk_view
+            bubble = BubbleWidget(parent, event_data)
+
+            # Team photo positions and sizes
+            # Team A: (600, 170, 350x350)
+            # Team B: (900, 170, 350x350)
+
+            if team == 'A':
+                # Position around Team A photo (left side)
+                # Create a circle around the photo
+                photo_center_x = 600 + 175  # 775
+                photo_center_y = 170 + 175  # 345
+                radius = 175  # Same as photo radius
+
+                # Random angle for circular positioning
+                angle = random.uniform(0, 2 * 3.14159)
+                # Add some randomness to radius (between photo edge and +100px out)
+                random_radius = radius + random.randint(0, 100)
+
+                x = int(photo_center_x + random_radius * math.cos(angle))
+                y = int(photo_center_y + random_radius * math.sin(angle))
+            else:  # Team B
+                # Position around Team B photo (right side)
+                photo_center_x = 900 + 175  # 1075
+                photo_center_y = 170 + 175  # 345
+                radius = 175
+
+                angle = random.uniform(0, 2 * 3.14159)
+                random_radius = radius + random.randint(0, 100)
+
+                x = int(photo_center_x + random_radius * math.cos(angle))
+                y = int(photo_center_y + random_radius * math.sin(angle))
+
+            # Clamp to valid screen bounds
+            x = max(10, min(x, 1500))
+            y = max(10, min(y, 750))
+
+        # Otherwise use standard positioning based on bubble_position settings
+        elif position in ['left', 'right']:
             # Use center zone for left/right
             parent = self.center_pk_view
             bubble = BubbleWidget(parent, event_data)
@@ -735,6 +1025,9 @@ class PKMainWindow(QMainWindow):
 
         bubble.move(x, y)
         bubble.show()
+
+        # Set z-order: Like/Comment bubbles should be behind everything
+        bubble.lower()
 
         self.active_bubbles.append(bubble)
 
@@ -768,6 +1061,9 @@ class PKMainWindow(QMainWindow):
 
         bubble.move(x, y)
         bubble.show()
+
+        # Set z-order: Gift bubbles should be in front of everything
+        bubble.raise_()
 
         self.active_bubbles.append(bubble)
 
@@ -887,6 +1183,40 @@ class PKMainWindow(QMainWindow):
         self.log_text.verticalScrollBar().setValue(
             self.log_text.verticalScrollBar().maximum()
         )
+
+    def _initialize_assignments_from_widgets(self):
+        """
+        Initialize assignments from widget data after signals are connected.
+        This fixes the race condition where widgets load data before signals are connected.
+        """
+        # Get assignments from gift widget
+        if hasattr(self, 'gift_assignment_widget') and self.gift_assignment_widget.assignments:
+            self._on_gift_assignment_changed(self.gift_assignment_widget.assignments)
+            print(f"[INIT] Loaded {len(self.gift_assignment_widget.assignments)} gift assignments from widget")
+
+        # Get assignments from interaction widget
+        if hasattr(self, 'interaction_assignment_widget') and self.interaction_assignment_widget.assignments:
+            self._on_interaction_assignment_changed(self.interaction_assignment_widget.assignments)
+            print(f"[INIT] Loaded interaction assignments from widget:")
+            print(f"  Like -> Team {self.interaction_assignment_widget.assignments.get('like', 'A')}")
+            print(f"  Comment -> Team {self.interaction_assignment_widget.assignments.get('comment', 'A')}")
+
+        # Get positions from bubble position widget
+        if hasattr(self, 'bubble_position_widget') and self.bubble_position_widget.positions:
+            self._on_bubble_position_changed(self.bubble_position_widget.positions)
+            print(f"[INIT] Loaded bubble positions from widget")
+
+        # Get sound settings from event sound widget
+        if hasattr(self, 'event_sound_widget') and self.event_sound_widget.sound_settings:
+            self._on_sound_settings_changed(self.event_sound_widget.sound_settings)
+            print(f"[INIT] Loaded event sound settings from widget")
+
+        # Get point settings from point settings widget
+        if hasattr(self, 'point_settings_widget') and self.point_settings_widget.point_values:
+            self._on_point_settings_changed(self.point_settings_widget.point_values)
+            print(f"[INIT] Loaded custom point settings from widget:")
+            print(f"  1 Like = {self.point_settings_widget.point_values.get('like', 1)} poin")
+            print(f"  1 Comment = {self.point_settings_widget.point_values.get('comment', 1)} poin")
 
     def _show_welcome_message(self):
         """Show welcome message"""

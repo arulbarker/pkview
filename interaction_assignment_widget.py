@@ -196,9 +196,9 @@ class InteractionAssignmentWidget(QWidget):
             # Emit signal
             self.assignment_changed.emit(self.assignments)
 
-            print(f"✓ Interaction assignments saved!")
-            print(f"  Like → Team {self.assignments['like']}")
-            print(f"  Comment → Team {self.assignments['comment']}")
+            print(f"[OK] Interaction assignments saved!")
+            print(f"  Like -> Team {self.assignments['like']}")
+            print(f"  Comment -> Team {self.assignments['comment']}")
 
         except Exception as e:
             print(f"Error saving assignments: {e}")
@@ -225,9 +225,12 @@ class InteractionAssignmentWidget(QWidget):
                         self.comment_b_radio.setChecked(True)
 
                 self.assignments = saved_assignments
-                print(f"✓ Loaded interaction assignments")
-                print(f"  Like → Team {self.assignments['like']}")
-                print(f"  Comment → Team {self.assignments['comment']}")
+                print(f"[OK] Loaded interaction assignments")
+                print(f"  Like -> Team {self.assignments['like']}")
+                print(f"  Comment -> Team {self.assignments['comment']}")
+
+                # Note: Do NOT emit here - main window will manually trigger after signal connected
+                # This prevents race condition where signal is emitted before anyone is listening
 
         except Exception as e:
             print(f"Error loading assignments: {e}")

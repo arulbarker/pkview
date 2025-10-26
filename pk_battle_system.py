@@ -134,15 +134,16 @@ class PKBattleSystem(QObject):
             self.team_b_points += points
             self.points_updated.emit('B', self.team_b_points)
 
-    def add_interaction_points(self, team, count=1):
+    def add_interaction_points(self, team, count=1, points_per_interaction=1):
         """
         Add points for like/comment interactions
 
         Args:
             team: 'A' or 'B'
             count: Number of likes/comments (default 1)
+            points_per_interaction: How many points per interaction (default 1)
         """
-        points = count  # 1 like/comment = 1 point
+        points = count * points_per_interaction
 
         if team == 'A':
             self.team_a_points += points

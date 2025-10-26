@@ -158,9 +158,9 @@ class BubblePositionWidget(QWidget):
             # Emit signal
             self.position_changed.emit(self.positions)
 
-            print(f"✓ Bubble positions saved!")
-            print(f"  Like → {self.positions['like']}")
-            print(f"  Comment → {self.positions['comment']}")
+            print(f"[OK] Bubble positions saved!")
+            print(f"  Like -> {self.positions['like']}")
+            print(f"  Comment -> {self.positions['comment']}")
 
         except Exception as e:
             print(f"Error saving positions: {e}")
@@ -185,9 +185,12 @@ class BubblePositionWidget(QWidget):
                         self.comment_position_radios[pos].setChecked(True)
 
                 self.positions = saved_positions
-                print(f"✓ Loaded bubble positions")
-                print(f"  Like → {self.positions['like']}")
-                print(f"  Comment → {self.positions['comment']}")
+                print(f"[OK] Loaded bubble positions")
+                print(f"  Like -> {self.positions['like']}")
+                print(f"  Comment -> {self.positions['comment']}")
+
+                # Note: Do NOT emit here - main window will manually trigger after signal connected
+                # This prevents race condition where signal is emitted before anyone is listening
 
         except Exception as e:
             print(f"Error loading positions: {e}")

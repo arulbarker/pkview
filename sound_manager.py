@@ -54,6 +54,21 @@ class SoundManager(QObject):
             self.players[sound_name] = player
             self.audio_outputs[sound_name] = audio_output
 
+    def set_win_sound_file(self, team, filepath):
+        """
+        Set custom win sound file for a team
+
+        Args:
+            team: 'A' or 'B'
+            filepath: Path to the sound file
+        """
+        sound_name = f'team_{team.lower()}_win'
+        if os.path.exists(filepath):
+            self.sound_files[sound_name] = filepath
+            print(f"[OK] Win sound for Team {team} set to: {os.path.basename(filepath)}")
+        else:
+            print(f"[WARNING] Sound file not found: {filepath}")
+
     def play_team_win(self, team):
         """
         Play win sound for a team
@@ -127,8 +142,12 @@ class SoundManager(QObject):
 
         filepath = self.sound_files.get(sound_name)
         if not filepath or not os.path.exists(filepath):
-            # Sound file doesn't exist - create placeholder or skip
-            print(f"Sound file not found: {filepath}")
+            # Sound file doesn't exist - skip silently
+            return
+
+        # Check if file is empty (placeholder file)
+        if os.path.getsize(filepath) < 100:  # Less than 100 bytes = invalid MP3
+            # Empty placeholder, skip silently
             return
 
         player = self.players[sound_name]
@@ -171,17 +190,21 @@ class SoundManager(QObject):
 
     def create_placeholder_sounds(self):
         """
-        Create placeholder/beep sounds if actual sound files don't exist
+        Check for missing sound files and report them
         This is a helper for users who don't have sound files yet
         """
-        # Note: Creating actual audio files would require additional libraries
-        # For now, we'll just create empty files as placeholders
+        # Don't create empty files - they cause FFmpeg errors
+        # Just report missing files
 
+        missing_files = []
         for sound_name, filepath in self.sound_files.items():
             if not os.path.exists(filepath):
-                # Create empty placeholder file
-                with open(filepath, 'w') as f:
-                    f.write('')  # Empty placeholder
+                missing_files.append((sound_name, filepath))
 
-                print(f"Created placeholder for: {filepath}")
-                print(f"  → Replace with actual MP3 file for {sound_name}")
+        if missing_files:
+            print("\n[WARNING] Missing sound files (sounds will be muted):")
+            for sound_name, filepath in missing_files:
+                print(f"  - {filepath} ({sound_name})")
+            print("\n[TIP] To enable sounds:")
+            print("  1. Add MP3 files to the 'sounds' folder")
+            print("  2. Make sure files are valid MP3 format (not empty)\n")

@@ -197,7 +197,7 @@ class EventSoundWidget(QWidget):
             self.sound_settings[event_type]['file'] = file_path
             file_name = os.path.basename(file_path)
             self.file_labels[event_type].setText(file_name)
-            print(f"✓ Suara dipilih untuk {event_type}: {file_name}")
+            print(f"[OK] Suara dipilih untuk {event_type}: {file_name}")
 
     def _save_settings(self):
         """Save sound settings to file"""
@@ -209,7 +209,7 @@ class EventSoundWidget(QWidget):
             # Emit signal
             self.sound_settings_changed.emit(self.sound_settings)
 
-            print(f"✓ Event sound settings saved!")
+            print(f"[OK] Event sound settings saved!")
             enabled_count = sum(1 for s in self.sound_settings.values() if s['enabled'])
             print(f"  {enabled_count}/{len(self.sound_settings)} sounds enabled")
 
@@ -238,9 +238,12 @@ class EventSoundWidget(QWidget):
                         file_name = os.path.basename(self.sound_settings[event_type]['file'])
                         self.file_labels[event_type].setText(file_name)
 
-                print(f"✓ Loaded event sound settings")
+                print(f"[OK] Loaded event sound settings")
                 enabled_count = sum(1 for s in self.sound_settings.values() if s['enabled'])
                 print(f"  {enabled_count}/{len(self.sound_settings)} sounds enabled")
+
+                # Note: Do NOT emit here - main window will manually trigger after signal connected
+                # This prevents race condition where signal is emitted before anyone is listening
 
         except Exception as e:
             print(f"Error loading sound settings: {e}")

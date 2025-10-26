@@ -273,7 +273,7 @@ class GiftAssignmentWidget(QWidget):
             self.assignment_changed.emit(self.assignments)
 
             # Visual feedback (could add a message box here)
-            print(f"✓ Gift assignments saved! ({len(self.assignments)} gifts)")
+            print(f"[OK] Gift assignments saved! ({len(self.assignments)} gifts)")
 
         except Exception as e:
             print(f"Error saving assignments: {e}")
@@ -297,7 +297,10 @@ class GiftAssignmentWidget(QWidget):
                             widget.radio_b.setChecked(True)
 
                 self.assignments = saved_assignments
-                print(f"✓ Loaded {len(saved_assignments)} gift assignments")
+                print(f"[OK] Loaded {len(saved_assignments)} gift assignments")
+
+                # Note: Do NOT emit here - main window will manually trigger after signal connected
+                # This prevents race condition where signal is emitted before anyone is listening
 
         except Exception as e:
             print(f"Error loading assignments: {e}")
