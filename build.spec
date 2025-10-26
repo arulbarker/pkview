@@ -12,7 +12,7 @@ a = Analysis(
     binaries=[],
     datas=[
         ('config.py', '.'),
-        ('assets/*', 'assets'),  # Include any assets
+        # ('assets/*', 'assets'),  # No assets folder yet
     ],
     hiddenimports=[
         'PyQt6',
@@ -20,8 +20,11 @@ a = Analysis(
         'PyQt6.QtGui',
         'PyQt6.QtWidgets',
         'PyQt6.QtNetwork',
+        'PyQt6.QtMultimedia',
         'TikTokLive',
         'TikTokLive.events',
+        'httpx',
+        'asyncio',
     ],
     hookspath=[],
     hooksconfig={},
