@@ -52,6 +52,17 @@ class BubbleWidget(QWidget):
             duration = event_config.get('duration', 3000)
             self.tier_border_width = None
             self.tier_glow_intensity = None
+            
+        # OVERRIDE: Custom settings from UI (applies to all events)
+        if 'custom_size' in self.event_data:
+            size = self.event_data['custom_size']
+            
+            # Special handling for gifts with custom size
+            if self.event_data.get('type') == 'gift' and 'custom_gift_size' in self.event_data:
+                size = self.event_data['custom_gift_size']
+                 
+        if 'custom_duration' in self.event_data:
+            duration = self.event_data['custom_duration']
 
         # Set size and position
         parent_width = self.parent().width() if self.parent() else config.WINDOW_WIDTH
@@ -103,25 +114,34 @@ class BubbleWidget(QWidget):
 
     def _on_avatar_loaded(self, reply):
         """Handle avatar loaded from network"""
-        if reply.error() == QNetworkReply.NetworkError.NoError:
-            data = reply.readAll()
-            pixmap = QPixmap()
-            pixmap.loadFromData(data)
+        # Check if widget is still valid (might be deleted during download)
+        try:
+            if not self.isVisible():
+                reply.deleteLater()
+                return
+                
+            if reply.error() == QNetworkReply.NetworkError.NoError:
+                data = reply.readAll()
+                pixmap = QPixmap()
+                pixmap.loadFromData(data)
 
-            if not pixmap.isNull():
-                # Create circular avatar - SUCCESS!
-                self.avatar_pixmap = self._create_circular_pixmap(pixmap)
-                self.update()
+                if not pixmap.isNull():
+                    # Create circular avatar - SUCCESS!
+                    self.avatar_pixmap = self._create_circular_pixmap(pixmap)
+                    self.update()
+                else:
+                    # Invalid image data
+                    print(f"Invalid avatar image data from {self.event_data.get('username')}")
+                    self._create_placeholder_avatar()
             else:
-                # Invalid image data
-                print(f"Invalid avatar image data from {self.event_data.get('username')}")
+                # Network error - keep placeholder
+                print(f"Avatar download error for {self.event_data.get('username')}: {reply.errorString()}")
                 self._create_placeholder_avatar()
-        else:
-            # Network error - keep placeholder
-            print(f"Avatar download error for {self.event_data.get('username')}: {reply.errorString()}")
-            self._create_placeholder_avatar()
-
-        reply.deleteLater()
+                
+            reply.deleteLater()
+        except RuntimeError:
+            # Widget already deleted
+            pass
 
     def _create_placeholder_avatar(self):
         """Create placeholder avatar with initials and better design"""

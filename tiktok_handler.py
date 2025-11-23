@@ -120,7 +120,7 @@ class TikTokHandler(QObject):
 
         # Retry loop for initial connection + auto-reconnect
         attempt = 0
-        max_initial_retries = 3
+        max_initial_retries = 10  # Increased from 3 to 10 for better persistence
 
         while self.should_reconnect:
             try:
@@ -178,7 +178,7 @@ class TikTokHandler(QObject):
                 time.sleep(wait_seconds)
 
             except (TimeoutError, httpx.ReadTimeout, httpx.ConnectTimeout) as e:
-                error_msg = f"[WARNING] Connection timeout (attempt {attempt}): User '@{username}' might not be live"
+                error_msg = f"[WARNING] Connection timeout (attempt {attempt}): User '@{username}' might not be live or internet is slow"
                 self.error_occurred.emit(error_msg)
                 self.log_message.emit(error_msg)
 
@@ -198,6 +198,33 @@ class TikTokHandler(QObject):
                     break
 
             except Exception as e:
+                # Handle UserOfflineError specifically if possible (string check as fallback)
+                error_str = str(e)
+                if "UserOfflineError" in error_str or "offline" in error_str.lower():
+                     self.log_message.emit(f"[WARNING] User @{username} appears offline.")
+                     
+                     # If user wants "always reconnect", we should keep trying
+                     if attempt < max_initial_retries:
+                        wait_seconds = 5 * attempt
+                        self.log_message.emit(f"[RETRY] User offline. Retrying in {wait_seconds}s... ({attempt}/{max_initial_retries})")
+                        import time
+                        time.sleep(wait_seconds)
+                        continue
+                
+                self.log_message.emit(f"❌ ERROR: {error_str}")
+                self.log_message.emit(f"[ERROR] Connection error: {error_str}")
+                self.error_occurred.emit(str(e))
+                
+                # For other errors, also retry a few times
+                if attempt < max_initial_retries:
+                    wait_seconds = 5 * attempt
+                    self.log_message.emit(f"[RETRY] Error occurred. Retrying in {wait_seconds}s... ({attempt}/{max_initial_retries})")
+                    import time
+                    time.sleep(wait_seconds)
+                    continue
+                    
+                self.connection_status.emit("Connection Error")
+                break
                 error_type = type(e).__name__
                 error_str = str(e)
 
