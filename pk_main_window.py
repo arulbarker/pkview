@@ -1273,34 +1273,17 @@ class PKMainWindow(QMainWindow):
             # Team B: (900, 170, 350x350)
 
             if team == 'A':
-                # Position around Team A photo (left side)
-                # Create a circle around the photo
-                photo_center_x = 600 + 175  # 775
-                photo_center_y = 170 + 175  # 345
-                radius = 175  # Same as photo radius
-
-                # Random angle for circular positioning
-                angle = random.uniform(0, 2 * 3.14159)
-                # Add some randomness to radius (between photo edge and +100px out)
-                random_radius = radius + random.randint(0, 100)
-
-                x = int(photo_center_x + random_radius * math.cos(angle))
-                y = int(photo_center_y + random_radius * math.sin(angle))
+                # Position around Team A (Left side) - WIDE RANDOM AREA
+                x = random.randint(50, 600)
+                y = random.randint(100, 800)
             else:  # Team B
-                # Position around Team B photo (right side)
-                photo_center_x = 900 + 175  # 1075
-                photo_center_y = 170 + 175  # 345
-                radius = 175
-
-                angle = random.uniform(0, 2 * 3.14159)
-                random_radius = radius + random.randint(0, 100)
-
-                x = int(photo_center_x + random_radius * math.cos(angle))
-                y = int(photo_center_y + random_radius * math.sin(angle))
+                # Position around Team B (Right side) - WIDE RANDOM AREA
+                x = random.randint(900, 1450)
+                y = random.randint(100, 800)
 
             # Clamp to valid screen bounds
             x = max(10, min(x, 1500))
-            y = max(10, min(y, 750))
+            y = max(10, min(y, 850))
 
         # Otherwise use standard positioning based on bubble_position settings
         elif position in ['left', 'right']:
@@ -1418,13 +1401,15 @@ class PKMainWindow(QMainWindow):
             # Standard positioning
             if zone == 'bottom' and team:
                 if team == 'A':
+                    # Widen range for Team A (Left side)
                     x = random.randint(50, 600)
                 else:
-                    x = random.randint(900, 1400)
-                y = random.randint(20, 150)
+                    # Widen range for Team B (Right side)
+                    x = random.randint(900, 1450)
+                y = random.randint(50, 800) # Full height range
             else:
-                x = random.randint(50, 1400)
-                y = random.randint(20, 150)
+                x = random.randint(50, 1450)
+                y = random.randint(50, 800)
 
         bubble.move(x, y)
         bubble.show()
