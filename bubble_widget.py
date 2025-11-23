@@ -266,8 +266,8 @@ class BubbleWidget(QWidget):
             border_width = self.tier_border_width
             painter.setPen(QPen(QColor(255, 215, 0), border_width))  # Gold
         elif is_gift:
-            # Default gift border
-            painter.setPen(QPen(QColor(255, 215, 0), 6))  # Gold
+            # Default gift border - THICKER & BRIGHTER
+            painter.setPen(QPen(QColor(255, 223, 0), 8))  # Golden Yellow
         else:
             # Default normal border
             painter.setPen(QPen(QColor(255, 255, 255, 100), 3))
@@ -280,9 +280,9 @@ class BubbleWidget(QWidget):
             glow_alpha = self.tier_glow_intensity
             glow_radius = rect.width() / 2 + (self.tier_glow_intensity // 5)
         elif is_gift:
-            # Default gift glow
-            glow_alpha = 80
-            glow_radius = rect.width() / 2 + 20
+            # Default gift glow - INTENSE
+            glow_alpha = 150 # Much brighter
+            glow_radius = rect.width() / 2 # Full fill
         else:
             # Default normal glow
             glow_alpha = 50

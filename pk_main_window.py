@@ -210,6 +210,13 @@ class PKMainWindow(QMainWindow):
         self.bottom_bubble_zone.setGeometry(0, 0, 2000, 1200)  # Full size
         self.bottom_bubble_zone.setStyleSheet("background: transparent;")
         self.bottom_bubble_zone.lower()  # Behind draggable elements
+        
+        # GIFT OVERLAY ZONE (FULL SIZE - ON TOP OF EVERYTHING)
+        self.gift_overlay_zone = QWidget(container)
+        self.gift_overlay_zone.setGeometry(0, 0, 2000, 1200)
+        self.gift_overlay_zone.setStyleSheet("background: transparent;")
+        self.gift_overlay_zone.raise_() # Ensure it's on top
+        self.gift_overlay_zone.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents) # Let clicks pass through if needed
 
         return container
 
@@ -1353,14 +1360,13 @@ class PKMainWindow(QMainWindow):
 
     def _create_bubble(self, event_data, zone='top', team=None):
         """Create bubble in specified zone (for gifts)"""
-        if zone == 'top':
-            parent = self.top_bubble_zone
-        else:
-            parent = self.bottom_bubble_zone
+        # ALWAYS use overlay zone for gifts to ensure they are on top
+        parent = self.gift_overlay_zone
             
         # Inject custom settings
         event_data['custom_duration'] = self.bubble_settings['duration']
         event_data['custom_size'] = self.bubble_settings['size']
+        event_data['custom_gift_size'] = self.bubble_settings['gift_size']
 
         bubble = BubbleWidget(parent, event_data)
         
