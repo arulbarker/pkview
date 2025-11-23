@@ -3,8 +3,9 @@ Bubble Widget Component
 Displays animated bubble with user avatar, name, and event info
 """
 
-from PyQt6.QtWidgets import QWidget, QLabel
-from PyQt6.QtCore import Qt, QRect, QTimer, QUrl, QPointF
+from PyQt6.QtWidgets import QWidget, QLabel, QGraphicsOpacityEffect
+from PyQt6.QtCore import (Qt, QRect, QTimer, QUrl, QPointF, QPropertyAnimation, 
+                         QSequentialAnimationGroup, QEasingCurve)
 from PyQt6.QtGui import (QPainter, QPixmap, QPainterPath, QColor,
                         QFont, QLinearGradient, QRadialGradient, QPen)
 from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
@@ -384,14 +385,89 @@ class BubbleWidget(QWidget):
                            Qt.AlignmentFlag.AlignCenter, info_text)
 
     def start_animation(self):
-        """Start the animation effect"""
-        effect_func = EFFECT_REGISTRY.get(self.effect_name)
+        """Start the bouncing animation effect"""
+        # Initialize random velocity
+        speed = 2.0  # Base speed
+        self.vx = random.choice([-1, 1]) * random.uniform(1.5, 3.5)
+        self.vy = random.choice([-1, 1]) * random.uniform(1.5, 3.5)
+        
+        # Start movement timer (approx 60 FPS)
+        self.movement_timer = QTimer(self)
+        self.movement_timer.timeout.connect(self._update_movement)
+        self.movement_timer.start(16)
+        
+        # Opacity animation (Fade In -> Hold -> Fade Out)
+        opacity_effect = QGraphicsOpacityEffect(self)
+        self.setGraphicsEffect(opacity_effect)
+        
+        anim_group = QSequentialAnimationGroup(self)
+        
+        # Fade In
+        fade_in = QPropertyAnimation(opacity_effect, b"opacity")
+        fade_in.setDuration(500)
+        fade_in.setStartValue(0)
+        fade_in.setEndValue(1)
+        fade_in.setEasingCurve(QEasingCurve.Type.OutQuad)
+        
+        # Hold (Duration - FadeIn - FadeOut)
+        hold_duration = max(1000, self.duration - 1000)
+        hold = QPropertyAnimation(opacity_effect, b"opacity")
+        hold.setDuration(hold_duration)
+        hold.setStartValue(1)
+        hold.setEndValue(1)
+        
+        # Fade Out
+        fade_out = QPropertyAnimation(opacity_effect, b"opacity")
+        fade_out.setDuration(500)
+        fade_out.setStartValue(1)
+        fade_out.setEndValue(0)
+        fade_out.setEasingCurve(QEasingCurve.Type.InQuad)
+        
+        anim_group.addAnimation(fade_in)
+        anim_group.addAnimation(hold)
+        anim_group.addAnimation(fade_out)
+        
+        anim_group.finished.connect(self.deleteLater)
+        anim_group.start()
+        
+        # Keep reference to prevent garbage collection
+        self._anim_group = anim_group
 
-        if effect_func:
-            effect_func(self, self.duration)
-        else:
-            # Fallback to fade
-            EFFECT_REGISTRY['fade_in_out'](self, self.duration)
+    def _update_movement(self):
+        """Update bubble position for bouncing effect"""
+        if not self.parent():
+            return
+            
+        # Current position
+        x = self.x()
+        y = self.y()
+        w = self.width()
+        h = self.height()
+        
+        # Parent bounds
+        parent_w = self.parent().width()
+        parent_h = self.parent().height()
+        
+        # Update position
+        new_x = x + self.vx
+        new_y = y + self.vy
+        
+        # Wall collision (Bounce)
+        if new_x <= 0:
+            new_x = 0
+            self.vx = -self.vx
+        elif new_x + w >= parent_w:
+            new_x = parent_w - w
+            self.vx = -self.vx
+            
+        if new_y <= 0:
+            new_y = 0
+            self.vy = -self.vy
+        elif new_y + h >= parent_h:
+            new_y = parent_h - h
+            self.vy = -self.vy
+            
+        self.move(int(new_x), int(new_y))
 
     def showEvent(self, event):
         """Override show event to auto-start animation"""
