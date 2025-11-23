@@ -6,7 +6,7 @@ Vertical layout for PK battle with bubble zones
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QLabel, QPushButton, QFrame, QSplitter, QGroupBox,
                              QTextEdit, QLineEdit, QSpinBox, QSlider, QCheckBox,
-                             QTabWidget)
+                             QTabWidget, QComboBox)
 from PyQt6.QtCore import Qt, QTimer, pyqtSlot, QRect, QPoint
 from PyQt6.QtGui import QPainter, QColor, QLinearGradient, QPen, QFont
 import config
@@ -341,19 +341,9 @@ class PKMainWindow(QMainWindow):
         # Battle controls
         btn_layout = QVBoxLayout()
 
-        self.start_btn = QPushButton("▶️ Start Battle")
-        self.start_btn.clicked.connect(self._on_start_battle)
-        self.start_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #4CAF50;
-                color: white;
-                padding: 10px;
-                border-radius: 5px;
-                font-weight: bold;
-            }
-            QPushButton:hover { background-color: #45a049; }
-        """)
-        btn_layout.addWidget(self.start_btn)
+        # Start button removed as requested - functionality moved to Connect button
+        # self.start_btn = QPushButton("▶️ Start Battle")
+        # ...
 
         self.pause_btn = QPushButton("⏸️ Pause")
         self.pause_btn.clicked.connect(self._on_pause_battle)
@@ -414,15 +404,177 @@ class PKMainWindow(QMainWindow):
         self.team_b_sound_file.setStyleSheet("color: #888; font-size: 11px;")
         team_b_sound_layout.addWidget(self.team_b_sound_file)
         team_b_sound_layout.addStretch()
-
         team_b_browse_btn = QPushButton("Browse...")
         team_b_browse_btn.clicked.connect(lambda: self._browse_win_sound('B'))
         team_b_browse_btn.setMaximumWidth(80)
         team_b_sound_layout.addWidget(team_b_browse_btn)
         layout.addLayout(team_b_sound_layout)
 
+        # Layout Mode
+        layout_group = QGroupBox("Tampilan Layout")
+        layout_layout = QVBoxLayout(layout_group)
+        
+        self.layout_combo = QComboBox()
+        self.layout_combo.addItems([
+            "Standard (Horizontal)", 
+            "Vertical Stack (Top-Bottom)", 
+            "Vertical Stream (Rotated -90°)"
+        ])
+        self.layout_combo.currentIndexChanged.connect(self._on_layout_mode_changed)
+        layout_layout.addWidget(self.layout_combo)
+        
+        layout.addWidget(layout_group)
+
+        # Add stretch
         layout.addStretch()
         return widget
+
+    def _on_layout_mode_changed(self, index):
+        """Handle layout mode change"""
+        mode = self.layout_combo.currentText()
+        self._apply_layout_mode(mode)
+
+    def _apply_layout_mode(self, mode):
+        """Apply the selected layout mode"""
+        
+        # Helper to restore standard dimensions
+        def restore_label_dims(label, w, h):
+            label.rotation_angle = 0
+            # Restore standard constraints (hardcoded based on init)
+            # Standard constraints:
+            # Score: min_w 300, max_w 1000, min_h 60, max_h 150
+            # Timer: min_w 200, max_w 500, min_h 40, max_h 100
+            # Points: min_w 150, max_w 500
+            # VS: min_w 60, max_w 300, min_h 40, max_h 150
+            
+            if label == self.score_label:
+                label.min_width, label.max_width = 300, 1000
+                label.min_height, label.max_height = 60, 150
+            elif label == self.timer_label:
+                label.min_width, label.max_width = 200, 500
+                label.min_height, label.max_height = 40, 100
+            elif label in [self.points_a_label, self.points_b_label]:
+                label.min_width, label.max_width = 150, 500
+                label.min_height, label.max_height = 40, 100 # Default
+            elif label == self.vs_label:
+                label.min_width, label.max_width = 60, 300
+                label.min_height, label.max_height = 40, 150
+                
+            label.resize(w, h)
+
+        # Reset rotations first
+        self.photo_a.rotation_angle = 0
+        self.photo_b.rotation_angle = 0
+        self.progress_bar.rotation_angle = 0
+        
+        # Center X coordinate
+        center_x = 1400 // 2
+        
+        if "Standard" in mode:
+            # Standard Horizontal Layout
+            restore_label_dims(self.score_label, 600, 80)
+            restore_label_dims(self.timer_label, 300, 50)
+            restore_label_dims(self.points_a_label, 300, 60)
+            restore_label_dims(self.points_b_label, 300, 60)
+            restore_label_dims(self.vs_label, 100, 50)
+            
+            self.score_label.move(500, 10)
+            self.timer_label.move(650, 100)
+            
+            self.photo_a.move(300, 200)
+            self.photo_b.move(800, 200)
+            
+            self.points_a_label.move(300, 560)
+            self.points_b_label.move(800, 560)
+            
+            self.vs_label.move(675, 350)
+            self.progress_bar.setGeometry(300, 650, 800, 40)
+            
+        elif "Vertical Stack" in mode:
+            # Vertical Stack (Top-Bottom)
+            restore_label_dims(self.score_label, 600, 80)
+            restore_label_dims(self.timer_label, 300, 50)
+            restore_label_dims(self.points_a_label, 300, 60)
+            restore_label_dims(self.points_b_label, 300, 60)
+            restore_label_dims(self.vs_label, 100, 50)
+            
+            self.score_label.move(center_x - 300, 20)
+            self.timer_label.move(center_x - 150, 100)
+            
+            # Team A Top
+            self.photo_a.move(center_x - 175, 180)
+            self.points_a_label.move(center_x - 150, 540)
+            
+            # VS in middle
+            self.vs_label.move(center_x - 50, 600)
+            
+            # Team B Bottom
+            self.photo_b.move(center_x - 175, 680)
+            self.points_b_label.move(center_x - 150, 1040)
+            
+            # Progress bar
+            self.progress_bar.setGeometry(center_x - 400, 1120, 800, 40)
+
+        elif "Rotated" in mode:
+            # Rotated -90 degrees for vertical streaming
+            rotation = -90
+            
+            # Helper to swap dimensions for a label
+            def rotate_label_dims(label, w, h):
+                label.rotation_angle = rotation
+                # Swap min/max constraints
+                label.min_width, label.min_height = label.min_height, label.min_width
+                label.max_width, label.max_height = label.max_height, label.max_width
+                # Resize to swapped dimensions
+                label.resize(h, w)
+            
+            # Apply rotation and dimension swap
+            rotate_label_dims(self.score_label, 600, 80)
+            rotate_label_dims(self.timer_label, 300, 50)
+            rotate_label_dims(self.points_a_label, 300, 60)
+            rotate_label_dims(self.points_b_label, 300, 60)
+            rotate_label_dims(self.vs_label, 100, 50)
+            
+            # Photos don't need swap (square)
+            self.photo_a.rotation_angle = rotation
+            self.photo_b.rotation_angle = rotation
+            
+            # Progress bar needs swap
+            self.progress_bar.rotation_angle = rotation
+            
+            # Center Y line (middle of the screen height)
+            mid_y = 500
+            
+            # Position elements (Left-to-Right visually -> Top-to-Bottom logically)
+            
+            # 1. Header (Timer & Score)
+            self.timer_label.move(100, mid_y - 150)
+            self.score_label.move(250, mid_y - 300)
+            
+            # 2. Team A
+            self.photo_a.move(450, mid_y - 175)
+            self.points_a_label.move(400, mid_y + 200)
+            
+            # 3. VS
+            self.vs_label.move(800, mid_y - 50)
+            
+            # 4. Team B
+            self.photo_b.move(950, mid_y - 175)
+            self.points_b_label.move(900, mid_y + 200)
+            
+            # 5. Progress Bar
+            # Swap width/height for geometry
+            self.progress_bar.setGeometry(1300, mid_y - 400, 60, 800)
+
+        # Force update
+        self.score_label.update()
+        self.timer_label.update()
+        self.points_a_label.update()
+        self.points_b_label.update()
+        self.vs_label.update()
+        self.photo_a.update()
+        self.photo_b.update()
+        self.progress_bar.update()
 
     def _create_tiktok_controls(self):
         """Create TikTok connection controls"""
@@ -712,7 +864,7 @@ class PKMainWindow(QMainWindow):
     def _on_start_battle(self):
         """Start PK battle"""
         self.pk_system.start_battle()
-        self.start_btn.setEnabled(False)
+        # self.start_btn.setEnabled(False) # Button removed
         self.pause_btn.setEnabled(True)
         self._add_log("▶️ PK Battle started!")
 
@@ -730,7 +882,7 @@ class PKMainWindow(QMainWindow):
     def _on_reset_battle(self):
         """Reset battle"""
         self.pk_system.reset_all()
-        self.start_btn.setEnabled(True)
+        # self.start_btn.setEnabled(True) # Button removed
         self.pause_btn.setEnabled(False)
         self.pause_btn.setText("⏸️ Pause")
         self._add_log("🔄 Battle reset to 0-0")
@@ -1000,28 +1152,39 @@ class PKMainWindow(QMainWindow):
             parent = self.center_pk_view
             bubble = BubbleWidget(parent, event_data)
 
+        # Check layout mode
+        is_rotated = "Rotated" in self.layout_combo.currentText()
+        
+        if is_rotated:
+            bubble.rotation_angle = -90
+            
+            # Adjust positioning for rotated layout
+            if position == 'left': # Visually Top
+                x = random.randint(100, 1400)
+                y = random.randint(10, 100)
+            elif position == 'right': # Visually Bottom
+                x = random.randint(100, 1400)
+                y = random.randint(900, 1000)
+            elif position == 'bottom': # Visually Right
+                x = random.randint(1400, 1500)
+                y = random.randint(100, 1000)
+            else: # top (default) -> Visually Left
+                x = random.randint(50, 150)
+                y = random.randint(100, 1000)
+        else:
+            # Standard positioning
             if position == 'left':
-                # Left edge, random vertical
                 x = random.randint(10, 100)
                 y = random.randint(100, 700)
-            else:  # right
-                # Right edge, random vertical
+            elif position == 'right':
                 x = random.randint(1400, 1500)
                 y = random.randint(100, 700)
-
-        elif position == 'bottom':
-            # Bottom zone, random horizontal
-            parent = self.bottom_bubble_zone
-            bubble = BubbleWidget(parent, event_data)
-            x = random.randint(50, 1400)
-            y = random.randint(20, 150)
-
-        else:  # top (default)
-            # Top zone, random horizontal
-            parent = self.top_bubble_zone
-            bubble = BubbleWidget(parent, event_data)
-            x = random.randint(50, 1400)
-            y = random.randint(20, 150)
+            elif position == 'bottom':
+                x = random.randint(50, 1400)
+                y = random.randint(20, 150)
+            else: # top
+                x = random.randint(50, 1400)
+                y = random.randint(20, 150)
 
         bubble.move(x, y)
         bubble.show()
@@ -1043,21 +1206,57 @@ class PKMainWindow(QMainWindow):
             parent = self.bottom_bubble_zone
 
         bubble = BubbleWidget(parent, event_data)
-
-        # Position based on zone and team
-        if zone == 'bottom' and team:
-            # Directional positioning for gifts
-            if team == 'A':
-                # Left side
-                x = random.randint(50, 600)
+        
+        # Check layout mode
+        is_rotated = "Rotated" in self.layout_combo.currentText()
+        
+        if is_rotated:
+            bubble.rotation_angle = -90
+            
+            # Position based on zone and team (Rotated logic)
+            # Top Zone -> Left Side
+            # Bottom Zone -> Right Side
+            
+            if zone == 'bottom' and team:
+                if team == 'A':
+                    # Top-Left (Visually Top) -> Logic: Left side, Top half
+                    x = random.randint(50, 200)
+                    y = random.randint(100, 500)
+                else:
+                    # Bottom-Left (Visually Bottom) -> Logic: Left side, Bottom half
+                    # Wait, Team B is usually Right side in standard view.
+                    # In Rotated: Team A is Left (Visually Top), Team B is Right (Visually Bottom).
+                    # So Team A gifts should be Left side. Team B gifts should be Right side.
+                    
+                    # Let's simplify:
+                    # Team A -> Left Side (Visually Top of Stream)
+                    # Team B -> Right Side (Visually Bottom of Stream)
+                    
+                    if team == 'A':
+                         x = random.randint(50, 250)
+                         y = random.randint(100, 900)
+                    else:
+                         x = random.randint(1300, 1500)
+                         y = random.randint(100, 900)
             else:
-                # Right side
-                x = random.randint(900, 1400)
-            y = random.randint(20, 150)
+                # Random positioning in zone
+                if zone == 'top': # Left Side
+                    x = random.randint(50, 250)
+                    y = random.randint(100, 900)
+                else: # Right Side
+                    x = random.randint(1300, 1500)
+                    y = random.randint(100, 900)
         else:
-            # Random positioning in zone
-            x = random.randint(50, 1400)
-            y = random.randint(20, 150)
+            # Standard positioning
+            if zone == 'bottom' and team:
+                if team == 'A':
+                    x = random.randint(50, 600)
+                else:
+                    x = random.randint(900, 1400)
+                y = random.randint(20, 150)
+            else:
+                x = random.randint(50, 1400)
+                y = random.randint(20, 150)
 
         bubble.move(x, y)
         bubble.show()
@@ -1147,6 +1346,9 @@ class PKMainWindow(QMainWindow):
 
         self.connect_btn.setEnabled(False)
         self.disconnect_btn.setEnabled(True)
+        
+        # Auto-start battle as requested
+        self._on_start_battle()
 
     def _on_disconnect_tiktok(self):
         """Disconnect from TikTok"""
@@ -1365,22 +1567,34 @@ class PKProgressBar(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
 
-        # Apply rotation if needed
-        if self.rotation_angle != 0:
-            # Save original state
-            painter.save()
+        rect = self.rect()
+        w = rect.width()
+        h = rect.height()
+        
+        is_vertical = abs(abs(self.rotation_angle) - 90) < 5
 
-            # Rotate around center
-            center = self.rect().center()
+        if self.rotation_angle != 0:
+            painter.save()
+            center = rect.center()
             painter.translate(center.x(), center.y())
             painter.rotate(self.rotation_angle)
-            painter.translate(-center.x(), -center.y())
-
-        w = self.width()
-        h = self.height()
+            
+            if is_vertical:
+                # Swapped dimensions
+                target_rect = QRect(-h//2, -w//2, h, w)
+            else:
+                target_rect = QRect(-w//2, -h//2, w, h)
+        else:
+            target_rect = rect
+            
+        # Use target_rect for drawing
+        tw = target_rect.width()
+        th = target_rect.height()
+        tx = target_rect.x()
+        ty = target_rect.y()
 
         # Background
-        painter.fillRect(0, 0, w, h, QColor(50, 50, 50))
+        painter.fillRect(target_rect, QColor(50, 50, 50))
 
         # Calculate percentage for bar visual
         total = self.team_a_points + self.team_b_points
@@ -1391,23 +1605,23 @@ class PKProgressBar(QWidget):
             team_a_pct = 50
             team_b_pct = 50
 
-        # Team A bar (from left)
-        a_width = int(w * (team_a_pct / 100))
-        gradient_a = QLinearGradient(0, 0, a_width, 0)
+        # Team A bar (from left of target_rect)
+        a_width = int(tw * (team_a_pct / 100))
+        gradient_a = QLinearGradient(tx, ty, tx + a_width, ty)
         gradient_a.setColorAt(0, QColor(255, 107, 107))
         gradient_a.setColorAt(1, QColor(255, 82, 82))
-        painter.fillRect(0, 0, a_width, h, gradient_a)
+        painter.fillRect(tx, ty, a_width, th, gradient_a)
 
-        # Team B bar (from right)
-        b_width = int(w * (team_b_pct / 100))
-        gradient_b = QLinearGradient(w - b_width, 0, w, 0)
+        # Team B bar (from right of target_rect)
+        b_width = int(tw * (team_b_pct / 100))
+        gradient_b = QLinearGradient(tx + tw - b_width, ty, tx + tw, ty)
         gradient_b.setColorAt(0, QColor(78, 205, 196))
         gradient_b.setColorAt(1, QColor(61, 189, 179))
-        painter.fillRect(w - b_width, 0, b_width, h, gradient_b)
+        painter.fillRect(tx + tw - b_width, ty, b_width, th, gradient_b)
 
         # Border
         painter.setPen(QPen(QColor(255, 255, 255), 3))
-        painter.drawRect(1, 1, w - 2, h - 2)
+        painter.drawRect(target_rect.adjusted(1, 1, -1, -1))
 
         # REAL POINTS text (not percentage!)
         font = painter.font()
@@ -1417,29 +1631,28 @@ class PKProgressBar(QWidget):
         painter.setPen(QColor(255, 255, 255))
 
         # Team A points (left)
-        painter.drawText(QRect(10, 0, 250, h),
+        painter.drawText(QRect(tx + 10, ty, 250, th),
                         Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
                         f"{self.team_a_points:,}")
 
         # Team B points (right)
-        painter.drawText(QRect(w - 260, 0, 250, h),
+        painter.drawText(QRect(tx + tw - 260, ty, 250, th),
                         Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
                         f"{self.team_b_points:,}")
 
-        # Draw resize handles at corners (only when not rotating)
-        if abs(self.rotation_angle) < 5:
-            painter.setPen(QPen(QColor(255, 255, 255, 100), 1))
-            painter.setBrush(QColor(255, 255, 255, 50))
-            corner_size = 8
+        # Draw resize handles at corners (always)
+        painter.setPen(QPen(QColor(255, 255, 255, 100), 1))
+        painter.setBrush(QColor(255, 255, 255, 50))
+        corner_size = 8
 
-            # Draw small circles at corners
-            corners = [
-                (0, 0), (w - corner_size, 0),
-                (0, h - corner_size), (w - corner_size, h - corner_size)
-            ]
+        # Draw small circles at corners of target_rect
+        corners = [
+            (tx, ty), (tx + tw - corner_size, ty),
+            (tx, ty + th - corner_size), (tx + tw - corner_size, ty + th - corner_size)
+        ]
 
-            for x, y in corners:
-                painter.drawEllipse(x, y, corner_size, corner_size)
+        for x, y in corners:
+            painter.drawEllipse(int(x), int(y), corner_size, corner_size)
 
         # Restore if rotated
         if self.rotation_angle != 0:

@@ -157,47 +157,63 @@ class DraggableLabel(QLabel):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
 
-        # Apply rotation if needed
-        if self.rotation_angle != 0:
-            # Save original state
-            painter.save()
+        rect = self.rect()
+        w = rect.width()
+        h = rect.height()
 
-            # Rotate around center
-            center = self.rect().center()
+        # Check if we are rotated approx 90 degrees (vertical mode)
+        is_vertical = abs(abs(self.rotation_angle) - 90) < 5
+
+        if self.rotation_angle != 0:
+            painter.save()
+            center = rect.center()
             painter.translate(center.x(), center.y())
             painter.rotate(self.rotation_angle)
-            painter.translate(-center.x(), -center.y())
-
-        # Manual painting (don't call super!)
-        rect = self.rect()
+            
+            # If vertical, we swapped dimensions in the UI (resize(h, w)).
+            # So physically the widget is Narrow x Tall.
+            # But we want to draw Wide x Short.
+            # So we draw into a rect of size (h, w) centered at 0.
+            if is_vertical:
+                # Draw centered at (0,0) with swapped dims
+                target_rect = QRect(-h//2, -w//2, h, w)
+            else:
+                # Standard rotation (e.g. slight tilt), draw normally centered
+                target_rect = QRect(-w//2, -h//2, w, h)
+        else:
+            target_rect = rect
 
         # Draw background
         painter.setBrush(self.custom_bg_color)
         painter.setPen(QPen(self.custom_border_color, 2))
-        painter.drawRoundedRect(rect.adjusted(1, 1, -1, -1), 10, 10)
+        # Adjust rect for border
+        draw_rect = target_rect.adjusted(1, 1, -1, -1) if self.rotation_angle == 0 else target_rect
+        painter.drawRoundedRect(draw_rect, 10, 10)
 
         # Draw text
         painter.setPen(self.custom_text_color)
         font = self.font()
         painter.setFont(font)
-        painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, self.text())
+        painter.drawText(draw_rect, Qt.AlignmentFlag.AlignCenter, self.text())
 
-        # Draw resize handles at corners (only when not rotating)
-        if abs(self.rotation_angle) < 5:
-            painter.setPen(QPen(QColor(255, 255, 255, 100), 1))
-            painter.setBrush(QColor(255, 255, 255, 50))
-            corner_size = 8
-            w = rect.width()
-            h = rect.height()
+        # Draw resize handles at corners (always)
+        painter.setPen(QPen(QColor(255, 255, 255, 100), 1))
+        painter.setBrush(QColor(255, 255, 255, 50))
+        corner_size = 8
+        
+        # Calculate corners based on the rect we drew into
+        rw = draw_rect.width()
+        rh = draw_rect.height()
+        rx = draw_rect.x()
+        ry = draw_rect.y()
 
-            # Draw small circles at corners
-            corners = [
-                (0, 0), (w - corner_size, 0),
-                (0, h - corner_size), (w - corner_size, h - corner_size)
-            ]
+        corners = [
+            (rx, ry), (rx + rw - corner_size, ry),
+            (rx, ry + rh - corner_size), (rx + rw - corner_size, ry + rh - corner_size)
+        ]
 
-            for x, y in corners:
-                painter.drawEllipse(x, y, corner_size, corner_size)
+        for x, y in corners:
+            painter.drawEllipse(int(x), int(y), corner_size, corner_size)
 
         # Restore if rotated
         if self.rotation_angle != 0:
@@ -357,43 +373,62 @@ class DraggableMultiLineLabel(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        # Apply rotation
+        rect = self.rect()
+        w = rect.width()
+        h = rect.height()
+        
+        is_vertical = abs(abs(self.rotation_angle) - 90) < 5
+
         if self.rotation_angle != 0:
-            center = self.rect().center()
+            painter.save()
+            center = rect.center()
             painter.translate(center)
             painter.rotate(self.rotation_angle)
-            painter.translate(-center)
+            
+            if is_vertical:
+                target_rect = QRect(-h//2, -w//2, h, w)
+            else:
+                target_rect = QRect(-w//2, -h//2, w, h)
+        else:
+            target_rect = rect
 
         # Draw background
         painter.setBrush(self.bg_color)
         painter.setPen(QPen(self.border_color, 2))
-        painter.drawRoundedRect(self.rect().adjusted(2, 2, -2, -2), 10, 10)
+        painter.drawRoundedRect(target_rect.adjusted(2, 2, -2, -2), 10, 10)
 
         # Draw text lines
         font = QFont('Arial', self.font_size, QFont.Weight.Bold)
         painter.setFont(font)
         painter.setPen(self.text_color)
 
-        line_height = self.height() // max(len(self.lines), 1)
+        line_height = target_rect.height() // max(len(self.lines), 1)
         for i, line in enumerate(self.lines):
-            y = (i + 0.5) * line_height + 5
-            painter.drawText(QRect(10, int(y), self.width() - 20, line_height),
+            # Calculate Y relative to target_rect top
+            y = target_rect.top() + (i + 0.5) * line_height + 5
+            # Draw text centered in the target rect width
+            painter.drawText(QRect(target_rect.left() + 10, int(y - line_height/2), target_rect.width() - 20, line_height),
                            Qt.AlignmentFlag.AlignCenter, line)
 
-        # Draw resize handles
-        if abs(self.rotation_angle) < 5 or abs(self.rotation_angle - 360) < 5:
-            painter.setPen(QPen(QColor(255, 255, 255, 150), 2))
-            corner_size = 10
-            w = self.width()
-            h = self.height()
+        # Draw resize handles (ALWAYS)
+        painter.setPen(QPen(QColor(255, 255, 255, 150), 2))
+        corner_size = 10
+        
+        rw = target_rect.width()
+        rh = target_rect.height()
+        rx = target_rect.x()
+        ry = target_rect.y()
 
-            corners = [
-                (0, 0), (w - corner_size, 0),
-                (0, h - corner_size), (w - corner_size, h - corner_size)
-            ]
+        corners = [
+            (rx, ry), (rx + rw - corner_size, ry),
+            (rx, ry + rh - corner_size), (rx + rw - corner_size, ry + rh - corner_size)
+        ]
 
-            for x, y in corners:
-                painter.drawRect(x, y, corner_size, corner_size)
+        for x, y in corners:
+            painter.drawRect(int(x), int(y), corner_size, corner_size)
+            
+        if self.rotation_angle != 0:
+            painter.restore()
 
     def get_state(self):
         """Get state for saving"""

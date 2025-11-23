@@ -70,6 +70,7 @@ class BubbleWidget(QWidget):
         self.emoji = event_config.get('emoji', '')
         self.effect_name = effect
         self.duration = duration
+        self.rotation_angle = 0  # Default rotation
 
         # Enable custom painting
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
