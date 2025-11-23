@@ -79,10 +79,20 @@ def update_application():
         
         # 6. Restart application
         print("Restarting application...")
-        if sys.platform == 'win32':
-            subprocess.Popen([sys.executable, 'main.py'])
+        if getattr(sys, 'frozen', False):
+            # If we are running as an exe (updater.exe), we assume the main app is also an exe
+            # The main app name in build.spec is 'TikTokLiveBubble.exe'
+            app_name = 'TikTokLiveBubble.exe'
+            if os.path.exists(app_name):
+                subprocess.Popen([app_name])
+            else:
+                print(f"Could not find {app_name} to restart.")
         else:
-            subprocess.Popen([sys.executable, 'main.py'])
+            # Running as script
+            if sys.platform == 'win32':
+                subprocess.Popen([sys.executable, 'main.py'])
+            else:
+                subprocess.Popen([sys.executable, 'main.py'])
             
         sys.exit(0)
         

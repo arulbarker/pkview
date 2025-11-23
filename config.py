@@ -145,7 +145,7 @@ DUMMY_COMMENTS = [
 ]
 
 # Auto Update Settings
-CURRENT_VERSION = "3.0"
+CURRENT_VERSION = "4.0"
 # Replace these with your actual URLs
 UPDATE_CHECK_URL = "https://raw.githubusercontent.com/username/repo/main/version.txt"
 UPDATE_ZIP_URL = "https://github.com/username/repo/archive/refs/heads/main.zip"

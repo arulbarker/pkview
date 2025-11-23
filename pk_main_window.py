@@ -71,7 +71,8 @@ class PKMainWindow(QMainWindow):
         self.bubble_settings = {
             'duration': 5000,  # Default 5 seconds
             'size': 100,       # Default 100px (Like/Comment)
-            'gift_size': 150   # Default 150px (Gifts - Larger)
+            'gift_size': 150,  # Default 150px (Gifts - Larger)
+            'max_bubbles': 100 # Default max bubbles
         }
 
         # Event sound settings
@@ -128,11 +129,21 @@ class PKMainWindow(QMainWindow):
                     
                     if reply == QMessageBox.StandardButton.Yes:
                         print("User accepted update. Launching updater...")
-                        # Launch updater script
-                        if sys.platform == 'win32':
-                            subprocess.Popen([sys.executable, 'updater.py'])
+                        # Launch updater script/exe
+                        if getattr(sys, 'frozen', False):
+                            # Running as compiled exe
+                            updater_exe = "updater.exe"
+                            if os.path.exists(updater_exe):
+                                subprocess.Popen([updater_exe])
+                            else:
+                                QMessageBox.critical(self, "Error", "updater.exe not found!")
+                                return
                         else:
-                            subprocess.Popen([sys.executable, 'updater.py'])
+                            # Running as python script
+                            if sys.platform == 'win32':
+                                subprocess.Popen([sys.executable, 'updater.py'])
+                            else:
+                                subprocess.Popen([sys.executable, 'updater.py'])
                         
                         # Close current application
                         sys.exit(0)
@@ -822,6 +833,22 @@ class PKMainWindow(QMainWindow):
         gift_size_group.setLayout(gift_size_layout)
         layout.addWidget(gift_size_group)
         
+        # 4. Max Bubbles Control
+        max_bubbles_group = QGroupBox("Max Bubbles Limit")
+        max_bubbles_layout = QVBoxLayout()
+        
+        self.max_bubbles_spin = QSpinBox()
+        self.max_bubbles_spin.setRange(10, 500) # 10 to 500 bubbles
+        self.max_bubbles_spin.setValue(self.bubble_settings.get('max_bubbles', 100))
+        self.max_bubbles_spin.setSuffix(" bubbles")
+        self.max_bubbles_spin.setSingleStep(10)
+        self.max_bubbles_spin.valueChanged.connect(self._on_max_bubbles_changed)
+        
+        max_bubbles_layout.addWidget(QLabel("Maximum number of bubbles on screen:"))
+        max_bubbles_layout.addWidget(self.max_bubbles_spin)
+        max_bubbles_group.setLayout(max_bubbles_layout)
+        layout.addWidget(max_bubbles_group)
+        
         layout.addSpacing(20)
         
         # Save Button
@@ -858,6 +885,11 @@ class PKMainWindow(QMainWindow):
         """Update gift bubble size setting"""
         self.bubble_settings['gift_size'] = value
         self._add_log(f"🎁 Gift bubble size set to {value} px")
+
+    def _on_max_bubbles_changed(self, value):
+        """Update max bubbles setting"""
+        self.bubble_settings['max_bubbles'] = value
+        self._add_log(f"🔢 Max bubbles limit set to {value}")
 
     def _create_developer_tab(self):
         """Create developer info tab with social media links"""
@@ -1314,37 +1346,9 @@ class PKMainWindow(QMainWindow):
         event_data['custom_duration'] = self.bubble_settings['duration']
         event_data['custom_size'] = self.bubble_settings['size']
 
-        # If team is assigned (for like/comment), position near team photo in center view
-        if team:
-            parent = self.center_pk_view
-            bubble = BubbleWidget(parent, event_data, self.network_manager)
-
-            # Team photo positions and sizes
-            # Team A: (600, 170, 350x350)
-            # Team B: (900, 170, 350x350)
-
-            if team == 'A':
-                # Position around Team A (Left side) - WIDE RANDOM AREA
-                x = random.randint(50, 600)
-                y = random.randint(100, 800)
-            else:  # Team B
-                # Position around Team B (Right side) - WIDE RANDOM AREA
-                x = random.randint(900, 1450)
-                y = random.randint(100, 800)
-
-            # Clamp to valid screen bounds
-            x = max(10, min(x, 1500))
-            y = max(10, min(y, 850))
-
-        # Otherwise use standard positioning based on bubble_position settings
-        elif position in ['left', 'right']:
-            # Use center zone for left/right
-            parent = self.center_pk_view
-            bubble = BubbleWidget(parent, event_data, self.network_manager)
-        else:
-            # Default for top/bottom if no team assigned
-            parent = self.center_pk_view
-            bubble = BubbleWidget(parent, event_data, self.network_manager)
+        # Always use center_pk_view for like/comment bubbles
+        parent = self.center_pk_view
+        bubble = BubbleWidget(parent, event_data, self.network_manager)
 
         # Check layout mode
         is_rotated = "Rotated" in self.layout_combo.currentText()
@@ -1352,33 +1356,60 @@ class PKMainWindow(QMainWindow):
         if is_rotated:
             bubble.rotation_angle = -90
             
-            # Adjust positioning for rotated layout
-            if position == 'left': # Visually Top
-                x = random.randint(100, 1400)
-                y = random.randint(10, 100)
-            elif position == 'right': # Visually Bottom
-                x = random.randint(100, 1400)
-                y = random.randint(900, 1000)
-            elif position == 'bottom': # Visually Right
-                x = random.randint(1400, 1500)
-                y = random.randint(100, 1000)
-            else: # top (default) -> Visually Left
-                x = random.randint(50, 150)
-                y = random.randint(100, 1000)
+        # COORDINATE CALCULATION
+        if team:
+            # TEAM-BASED POSITIONING
+            if is_rotated:
+                # Rotated Logic (Team A = Top/Left, Team B = Bottom/Right)
+                if team == 'A':
+                    x = random.randint(50, 250)
+                    y = random.randint(100, 900)
+                else:
+                    x = random.randint(1300, 1500)
+                    y = random.randint(100, 900)
+            else:
+                # Standard Logic (Team A = Left, Team B = Right)
+                if team == 'A':
+                    x = random.randint(20, 700)
+                    y = random.randint(50, 900)
+                else:
+                    x = random.randint(800, 1500)
+                    y = random.randint(50, 900)
+                    
+                # Clamp
+                x = max(10, min(x, 1600))
+                y = max(10, min(y, 900))
+                
         else:
-            # Standard positioning
-            if position == 'left':
-                x = random.randint(10, 100)
-                y = random.randint(100, 700)
-            elif position == 'right':
-                x = random.randint(1400, 1500)
-                y = random.randint(100, 700)
-            elif position == 'bottom':
-                x = random.randint(50, 1400)
-                y = random.randint(20, 150)
-            else: # top
-                x = random.randint(50, 1400)
-                y = random.randint(20, 150)
+            # POSITION-BASED POSITIONING (No Team)
+            if is_rotated:
+                # Adjust positioning for rotated layout
+                if position == 'left': # Visually Top
+                    x = random.randint(100, 1400)
+                    y = random.randint(10, 100)
+                elif position == 'right': # Visually Bottom
+                    x = random.randint(100, 1400)
+                    y = random.randint(900, 1000)
+                elif position == 'bottom': # Visually Right
+                    x = random.randint(1400, 1500)
+                    y = random.randint(100, 1000)
+                else: # top (default) -> Visually Left
+                    x = random.randint(50, 150)
+                    y = random.randint(100, 1000)
+            else:
+                # Standard positioning
+                if position == 'left':
+                    x = random.randint(10, 100)
+                    y = random.randint(100, 700)
+                elif position == 'right':
+                    x = random.randint(1400, 1500)
+                    y = random.randint(100, 700)
+                elif position == 'bottom':
+                    x = random.randint(50, 1400)
+                    y = random.randint(20, 150) # Bottom strip
+                else: # top
+                    x = random.randint(50, 1400)
+                    y = random.randint(20, 150) # Top strip
 
         bubble.move(x, y)
         bubble.show()
@@ -1456,14 +1487,14 @@ class PKMainWindow(QMainWindow):
             if zone == 'bottom' and team:
                 if team == 'A':
                     # Widen range for Team A (Left side)
-                    x = random.randint(50, 600)
+                    x = random.randint(20, 700)
                 else:
                     # Widen range for Team B (Right side)
-                    x = random.randint(900, 1450)
-                y = random.randint(50, 800) # Full height range
+                    x = random.randint(800, 1500)
+                y = random.randint(20, 900) # Full height range
             else:
-                x = random.randint(50, 1450)
-                y = random.randint(50, 800)
+                x = random.randint(20, 1550)
+                y = random.randint(20, 900)
 
         bubble.move(x, y)
         bubble.show()
@@ -1496,13 +1527,17 @@ class PKMainWindow(QMainWindow):
 
     def _enforce_bubble_limit(self):
         """Limit the number of active bubbles to prevent lag"""
-        MAX_BUBBLES = 50 # Maximum number of bubbles on screen
+        # Use user setting, default to 100 if not set
+        MAX_BUBBLES = self.bubble_settings.get('max_bubbles', 100)
         
         while len(self.active_bubbles) >= MAX_BUBBLES:
             # Remove oldest bubble
             oldest_bubble = self.active_bubbles.pop(0)
             if oldest_bubble:
-                oldest_bubble.deleteLater()
+                try:
+                    oldest_bubble.deleteLater()
+                except RuntimeError:
+                    pass
             
     def _simulate_event(self, event_type):
         """Simulate event for testing"""
@@ -1597,9 +1632,24 @@ class PKMainWindow(QMainWindow):
             self.status_label.setStyleSheet("color: #ff6b6b; font-weight: bold;")
 
     @pyqtSlot(str)
+    @pyqtSlot(str)
     def _on_error(self, error_msg):
-        """Handle error"""
-        self._add_log(f"❌ ERROR: {error_msg}")
+        """Handle error with user-friendly messages"""
+        friendly_msg = error_msg
+        
+        # Simplify common connection errors
+        if "Connection refused" in error_msg:
+            friendly_msg = "Gagal terhubung ke server TikTok. (Connection Refused)"
+        elif "timed out" in error_msg.lower():
+            friendly_msg = "Koneksi lambat (Time out). Silakan coba lagi."
+        elif "getaddrinfo failed" in error_msg:
+            friendly_msg = "Tidak ada koneksi internet."
+        elif "404" in error_msg:
+            friendly_msg = "User tidak ditemukan atau tidak sedang Live."
+        elif "WinError" in error_msg:
+            friendly_msg = "Terjadi kesalahan sistem (Windows Error)."
+            
+        self._add_log(f"❌ ERROR: {friendly_msg}")
 
     def _add_log(self, message):
         """Add message to log"""
