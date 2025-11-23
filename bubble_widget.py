@@ -19,12 +19,13 @@ class BubbleWidget(QWidget):
     Animated bubble widget that displays user info and event details
     """
 
-    def __init__(self, parent=None, event_data=None):
+    def __init__(self, parent=None, event_data=None, network_manager=None):
         super().__init__(parent)
 
         self.event_data = event_data or {}
         self.avatar_pixmap = None
-        self.network_manager = QNetworkAccessManager()
+        # Use shared manager if provided, else create new (fallback)
+        self.network_manager = network_manager if network_manager else QNetworkAccessManager()
 
         self._setup_ui()
         self._load_avatar()

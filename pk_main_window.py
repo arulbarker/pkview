@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QTabWidget, QComboBox)
 from PyQt6.QtCore import Qt, QTimer, pyqtSlot, QRect, QPoint
 from PyQt6.QtGui import QPainter, QColor, QLinearGradient, QPen, QFont
+from PyQt6.QtNetwork import QNetworkAccessManager
 import config
 from bubble_widget import BubbleWidget
 from pk_battle_system import PKBattleSystem
@@ -59,6 +60,9 @@ class PKMainWindow(QMainWindow):
             'like': 'top',
             'comment': 'top'
         }
+        
+        # Initialize shared network manager for avatar downloads
+        self.network_manager = QNetworkAccessManager()
         
         # Custom Bubble Settings (Duration & Size)
         self.bubble_settings = {
@@ -1259,6 +1263,9 @@ class PKMainWindow(QMainWindow):
         """Create bubble at specified position (left, right, top, bottom)
         If team is provided, position bubble near team's photo circle"""
         
+        # Enforce limit before creating new bubble
+        self._enforce_bubble_limit()
+        
         # Inject custom settings
         event_data['custom_duration'] = self.bubble_settings['duration']
         event_data['custom_size'] = self.bubble_settings['size']
@@ -1266,7 +1273,7 @@ class PKMainWindow(QMainWindow):
         # If team is assigned (for like/comment), position near team photo in center view
         if team:
             parent = self.center_pk_view
-            bubble = BubbleWidget(parent, event_data)
+            bubble = BubbleWidget(parent, event_data, self.network_manager)
 
             # Team photo positions and sizes
             # Team A: (600, 170, 350x350)
@@ -1289,11 +1296,11 @@ class PKMainWindow(QMainWindow):
         elif position in ['left', 'right']:
             # Use center zone for left/right
             parent = self.center_pk_view
-            bubble = BubbleWidget(parent, event_data)
+            bubble = BubbleWidget(parent, event_data, self.network_manager)
         else:
             # Default for top/bottom if no team assigned
             parent = self.center_pk_view
-            bubble = BubbleWidget(parent, event_data)
+            bubble = BubbleWidget(parent, event_data, self.network_manager)
 
         # Check layout mode
         is_rotated = "Rotated" in self.layout_combo.currentText()
@@ -1348,6 +1355,9 @@ class PKMainWindow(QMainWindow):
 
     def _create_bubble(self, event_data, zone='top', team=None):
         """Create bubble in specified zone (for gifts)"""
+        # Enforce limit before creating new bubble
+        self._enforce_bubble_limit()
+
         # ALWAYS use overlay zone for gifts to ensure they are on top
         parent = self.gift_overlay_zone
             
@@ -1356,7 +1366,7 @@ class PKMainWindow(QMainWindow):
         event_data['custom_size'] = self.bubble_settings['size']
         event_data['custom_gift_size'] = self.bubble_settings['gift_size']
 
-        bubble = BubbleWidget(parent, event_data)
+        bubble = BubbleWidget(parent, event_data, self.network_manager)
         
         # Check layout mode
         is_rotated = "Rotated" in self.layout_combo.currentText()
@@ -1440,6 +1450,16 @@ class PKMainWindow(QMainWindow):
             # Bubble already deleted, ignore
             pass
 
+    def _enforce_bubble_limit(self):
+        """Limit the number of active bubbles to prevent lag"""
+        MAX_BUBBLES = 50 # Maximum number of bubbles on screen
+        
+        while len(self.active_bubbles) >= MAX_BUBBLES:
+            # Remove oldest bubble
+            oldest_bubble = self.active_bubbles.pop(0)
+            if oldest_bubble:
+                oldest_bubble.deleteLater()
+            
     def _simulate_event(self, event_type):
         """Simulate event for testing"""
         user = random.choice(config.DUMMY_USERS)
