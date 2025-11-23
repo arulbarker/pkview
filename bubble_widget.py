@@ -230,6 +230,13 @@ class BubbleWidget(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
+        # Apply rotation if needed
+        if hasattr(self, 'rotation_angle') and self.rotation_angle != 0:
+            center = self.rect().center()
+            painter.translate(center)
+            painter.rotate(self.rotation_angle)
+            painter.translate(-center)
+
         # Draw bubble background with gradient
         self._draw_bubble_background(painter)
 

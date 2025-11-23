@@ -1355,7 +1355,12 @@ class PKMainWindow(QMainWindow):
         self.active_bubbles.append(bubble)
 
         # Auto cleanup
-        duration = event_data.get('duration', 3000)
+        # Prioritize custom_duration if set
+        if 'custom_duration' in event_data:
+            duration = event_data['custom_duration']
+        else:
+            duration = event_data.get('duration', 3000)
+            
         QTimer.singleShot(duration + 1000, lambda: self._cleanup_bubble(bubble))
 
     def _create_bubble(self, event_data, zone='top', team=None):
@@ -1430,7 +1435,12 @@ class PKMainWindow(QMainWindow):
         self.active_bubbles.append(bubble)
 
         # Auto cleanup
-        duration = event_data.get('duration', 3000)
+        # Prioritize custom_duration if set
+        if 'custom_duration' in event_data:
+            duration = event_data['custom_duration']
+        else:
+            duration = event_data.get('duration', 3000)
+            
         QTimer.singleShot(duration + 1000, lambda: self._cleanup_bubble(bubble))
 
     def _cleanup_bubble(self, bubble):
