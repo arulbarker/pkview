@@ -1,6 +1,7 @@
 """
 Sound Manager - Win Effects and Audio
 Handles sound playback for PK Battle events
+One player per event type - no overlap within same type
 """
 
 from PyQt6.QtCore import QObject, QUrl
@@ -11,6 +12,8 @@ import os
 class SoundManager(QObject):
     """
     Manages sound effects for PK Battle
+    One player per event type - plays to completion before accepting new trigger
+    Different event types can play simultaneously
     """
 
     def __init__(self):
@@ -22,10 +25,8 @@ class SoundManager(QObject):
         # Volume (0.0 to 1.0)
         self.volume = 0.8
 
-        # Media players (one for each sound type to allow overlap)
+        # Single player per event type
         self.players = {}
-
-        # Audio outputs
         self.audio_outputs = {}
 
         # Sound file paths
@@ -39,20 +40,35 @@ class SoundManager(QObject):
         # Create sounds directory if it doesn't exist
         os.makedirs('sounds', exist_ok=True)
 
-        # Initialize players
+        # Initialize players for predefined sounds
         self._init_players()
 
     def _init_players(self):
-        """Initialize media players for each sound"""
+        """Initialize media players for predefined sounds"""
         for sound_name in self.sound_files.keys():
             player = QMediaPlayer()
             audio_output = QAudioOutput()
             audio_output.setVolume(self.volume)
-
             player.setAudioOutput(audio_output)
 
             self.players[sound_name] = player
             self.audio_outputs[sound_name] = audio_output
+
+    def _create_player_for_event(self, event_type):
+        """
+        Create player for event type if doesn't exist
+
+        Args:
+            event_type: Event type (like, comment, gift, etc.)
+        """
+        if event_type not in self.players:
+            player = QMediaPlayer()
+            audio_output = QAudioOutput()
+            audio_output.setVolume(self.volume)
+            player.setAudioOutput(audio_output)
+
+            self.players[event_type] = player
+            self.audio_outputs[event_type] = audio_output
 
     def set_win_sound_file(self, team, filepath):
         """
@@ -99,9 +115,10 @@ class SoundManager(QObject):
     def play_event_sound(self, event_type, sound_file):
         """
         Play sound for a specific event
+        ONLY plays if no sound is currently playing for this event type
 
         Args:
-            event_type: Event type (like, comment, etc.)
+            event_type: Event type (like, comment, gift, etc.)
             sound_file: Path to sound file
         """
         if not self.sound_enabled:
@@ -110,36 +127,33 @@ class SoundManager(QObject):
         if not sound_file or not os.path.exists(sound_file):
             return
 
+        # Check file size
+        if os.path.getsize(sound_file) < 100:  # Less than 100 bytes = invalid
+            return
+
         # Create player if doesn't exist
-        if event_type not in self.players:
-            player = QMediaPlayer()
-            audio_output = QAudioOutput()
-            audio_output.setVolume(self.volume)
-            player.setAudioOutput(audio_output)
-            self.players[event_type] = player
-            self.audio_outputs[event_type] = audio_output
+        self._create_player_for_event(event_type)
 
         player = self.players[event_type]
 
-        # Stop if already playing
+        # CRITICAL: Skip if already playing
+        # Sound must finish before accepting new trigger
         if player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
-            player.stop()
+            # Skip this sound - wait for current sound to finish
+            return
 
-        # Set source and play
+        # Player is idle - safe to play new sound
         url = QUrl.fromLocalFile(os.path.abspath(sound_file))
         player.setSource(url)
         player.play()
 
     def _play_sound(self, sound_name):
         """
-        Play a specific sound
+        Play a specific sound from sound_files
 
         Args:
             sound_name: Key in sound_files dict
         """
-        if sound_name not in self.players:
-            return
-
         filepath = self.sound_files.get(sound_name)
         if not filepath or not os.path.exists(filepath):
             # Sound file doesn't exist - skip silently
@@ -150,13 +164,17 @@ class SoundManager(QObject):
             # Empty placeholder, skip silently
             return
 
+        if sound_name not in self.players:
+            return
+
         player = self.players[sound_name]
 
-        # Stop if already playing
+        # CRITICAL: Skip if already playing
+        # Sound must finish before accepting new trigger
         if player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
-            player.stop()
+            return
 
-        # Set source and play
+        # Player is idle - safe to play
         url = QUrl.fromLocalFile(os.path.abspath(filepath))
         player.setSource(url)
         player.play()
@@ -208,3 +226,19 @@ class SoundManager(QObject):
             print("\n[TIP] To enable sounds:")
             print("  1. Add MP3 files to the 'sounds' folder")
             print("  2. Make sure files are valid MP3 format (not empty)\n")
+
+    def is_playing(self, event_type):
+        """
+        Check if a sound is currently playing for an event type
+
+        Args:
+            event_type: Event type to check
+
+        Returns:
+            bool: True if playing, False otherwise
+        """
+        if event_type not in self.players:
+            return False
+
+        player = self.players[event_type]
+        return player.playbackState() == QMediaPlayer.PlaybackState.PlayingState

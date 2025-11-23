@@ -21,7 +21,12 @@ def get_avatar_url(user):
     """
     # Try different avatar fields in order of preference (larger to smaller)
     avatar_fields = [
-        ('avatar', 'avatar_url'),      # Standard avatar object
+        ('avatar_thumb', 'm_urls'),     # Found in logs: ImageModel(m_urls=[...])
+        ('avatar_thumb', 'url_list'),   # Common in TikTokLive (UserImage object)
+        ('avatar_medium', 'url_list'),  # Medium avatar
+        ('avatar_large', 'url_list'),   # Large avatar
+        ('avatar_url', None),           # Direct URL (API style)
+        ('avatar', 'avatar_url'),       # Standard avatar object
         ('avatarLarge', None),          # Large avatar URL
         ('avatarMedium', None),         # Medium avatar URL
         ('avatar', 'urls'),             # Avatar URLs array
@@ -35,21 +40,31 @@ def get_avatar_url(user):
                 field_value = getattr(user, field_name)
 
                 if field_value:
-                    # If there's a sub-field, access it
+                    # If sub_field is specified (e.g. 'url_list' or 'avatar_url')
                     if sub_field:
                         if hasattr(field_value, sub_field):
                             url = getattr(field_value, sub_field)
                             if url and isinstance(url, str) and url.startswith('http'):
+                                print(f"[DEBUG] Found avatar URL for {user.unique_id}: {url}")
                                 return url
+                            # For lists (like url_list or m_urls)
+                            elif isinstance(url, (list, tuple)) and len(url) > 0:
+                                final_url = url[0]
+                                print(f"[DEBUG] Found avatar URL (from list) for {user.unique_id}: {final_url}")
+                                return final_url
                         # For 'urls' which might be an array
                         elif sub_field == 'urls' and isinstance(field_value, (list, tuple)) and len(field_value) > 0:
-                            return field_value[0]
+                            url = field_value[0]
+                            print(f"[DEBUG] Found avatar URL (from list) for {user.unique_id}: {url}")
+                            return url
                     # No sub-field, direct URL string
                     elif isinstance(field_value, str) and field_value.startswith('http'):
+                        print(f"[DEBUG] Found avatar URL (direct) for {user.unique_id}: {field_value}")
                         return field_value
         except Exception:
             continue
-
+            
+    print(f"[DEBUG] No avatar URL found for user {user.unique_id}")
     return None
 
 

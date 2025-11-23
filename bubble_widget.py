@@ -87,11 +87,16 @@ class BubbleWidget(QWidget):
         if avatar_url and avatar_url.startswith('http'):
             try:
                 request = QNetworkRequest(QUrl(avatar_url))
-                request.setTransferTimeout(5000)  # 5 second timeout (increased)
+                request.setTransferTimeout(10000)  # 10 second timeout
+                
+                # CRITICAL FIX: Add headers to prevent 403 Forbidden from TikTok CDN
+                request.setRawHeader(b"User-Agent", b"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+                request.setRawHeader(b"Referer", b"https://www.tiktok.com/")
+                
                 reply = self.network_manager.get(request)
                 reply.finished.connect(lambda: self._on_avatar_loaded(reply))
-            except Exception:
-                # Keep placeholder if loading fails
+            except Exception as e:
+                print(f"Error requesting avatar: {e}")
                 pass
 
     def _on_avatar_loaded(self, reply):
@@ -107,9 +112,11 @@ class BubbleWidget(QWidget):
                 self.update()
             else:
                 # Invalid image data
+                print(f"Invalid avatar image data from {self.event_data.get('username')}")
                 self._create_placeholder_avatar()
         else:
             # Network error - keep placeholder
+            print(f"Avatar download error for {self.event_data.get('username')}: {reply.errorString()}")
             self._create_placeholder_avatar()
 
         reply.deleteLater()

@@ -591,10 +591,10 @@ class PKMainWindow(QMainWindow):
         self.pk_system.round_won.connect(self._on_round_won)
         self.pk_system.round_reset.connect(self._on_round_reset)
 
-        # TikTok signals
         self.tiktok_handler.event_received.connect(self._on_tiktok_event)
         self.tiktok_handler.connection_status.connect(self._on_connection_status)
         self.tiktok_handler.error_occurred.connect(self._on_error)
+        self.tiktok_handler.log_message.connect(self._add_log)  # Connect log messages
 
     def _apply_theme(self):
         """Apply dark theme"""
@@ -1179,6 +1179,7 @@ class PKMainWindow(QMainWindow):
 
     def _add_log(self, message):
         """Add message to log"""
+        print(f"[LOG] {message}")  # Print to terminal for debugging
         self.log_text.append(message)
         self.log_text.verticalScrollBar().setValue(
             self.log_text.verticalScrollBar().maximum()
