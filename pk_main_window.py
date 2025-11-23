@@ -6,7 +6,10 @@ Vertical layout for PK battle with bubble zones
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QLabel, QPushButton, QFrame, QSplitter, QGroupBox,
                              QTextEdit, QLineEdit, QSpinBox, QSlider, QCheckBox,
-                             QTabWidget, QComboBox)
+                             QTabWidget, QComboBox, QMessageBox)
+import requests
+import subprocess
+import sys
 from PyQt6.QtCore import Qt, QTimer, pyqtSlot, QRect, QPoint
 from PyQt6.QtGui import QPainter, QColor, QLinearGradient, QPen, QFont
 from PyQt6.QtNetwork import QNetworkAccessManager
@@ -97,6 +100,47 @@ class PKMainWindow(QMainWindow):
 
         # Create placeholder sounds
         self.sound_manager.create_placeholder_sounds()
+
+        # Auto Update Check
+        QTimer.singleShot(1000, self.check_for_updates)
+
+    def check_for_updates(self):
+        """Check for updates from remote version file"""
+        try:
+            print(f"Checking for updates from {config.UPDATE_CHECK_URL}...")
+            # Set a short timeout so it doesn't block startup too long
+            response = requests.get(config.UPDATE_CHECK_URL, timeout=3)
+            
+            if response.status_code == 200:
+                remote_version = response.text.strip()
+                print(f"Current version: {config.CURRENT_VERSION}, Remote version: {remote_version}")
+                
+                if remote_version != config.CURRENT_VERSION:
+                    reply = QMessageBox.question(
+                        self, 
+                        'Update Available', 
+                        f"A new version ({remote_version}) is available!\n"
+                        f"Current version: {config.CURRENT_VERSION}\n\n"
+                        "Do you want to update now?",
+                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, 
+                        QMessageBox.StandardButton.Yes
+                    )
+                    
+                    if reply == QMessageBox.StandardButton.Yes:
+                        print("User accepted update. Launching updater...")
+                        # Launch updater script
+                        if sys.platform == 'win32':
+                            subprocess.Popen([sys.executable, 'updater.py'])
+                        else:
+                            subprocess.Popen([sys.executable, 'updater.py'])
+                        
+                        # Close current application
+                        sys.exit(0)
+            else:
+                print(f"Failed to check for updates. Status code: {response.status_code}")
+                
+        except Exception as e:
+            print(f"Update check failed: {e}")
 
     def _load_win_sound_settings(self):
         """Load win sound settings from config file"""
